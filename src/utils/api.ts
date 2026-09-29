@@ -1,0 +1,77 @@
+import { Network } from '@/network'
+import { getToken } from '@/stores/auth'
+import type { Subscription } from '@/utils/subscription'
+
+/** 后端统一信封：{ code, data, message } */
+interface ApiEnvelope<T> {
+  code?: number
+  data?: T
+  message?: string
+}
+
+function unwrap<T>(res: { data?: unknown }): T | null {
+  const body = res?.data as ApiEnvelope<T> | undefined
+  if (body && typeof body === 'object' && 'data' in body) return (body.data ?? null) as T | null
+  return (body ?? null) as T | null
+}
+
+/** 统一带上登录令牌（openid 由服务端解析，前端不传） */
+function withAuth(option: { url: string; method?: string; data?: unknown; header?: Record<string, string> }) {
+  const token = getToken()
+  return {
+    ...option,
+    header: { ...(option.header || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  } as Parameters<typeof Network.request>[0]
+}
+
+/** 全量同步本地订阅到服务端（失败静默，不影响本地使用） */
+export async function syncSubscriptions(list: Subscription[]): Promise<boolean> {
+  try {
+    const res = await Network.request(
+      withAuth({ url: '/api/subscription/sync', method: 'POST', data: { list } }),
+    )
+    return !!unwrap<{ count: number }>(res as { data?: unknown })
+  } catch (e) {
+    console.warn('[api] sync failed', e)
+    return false
+  }
+}
+
+export interface ServerStats {
+  count: number
+  activeCount: number
+  monthly: number
+  yearly: number
+  yearlyEstimate: number
+  monthlyAvg: number
+  categories: { key: string; label: string; value: number; percent: number }[]
+  top: { id: string; name: string; monthly: number }[]
+}
+
+/** 拉取服务端统计（多端一致的对账口径） */
+export async function fetchStats(): Promise<ServerStats | null> {
+  try {
+    const res = await Network.request(withAuth({ url: '/api/subscription/stats' }))
+    return unwrap<ServerStats>(res as { data?: unknown })
+  } catch (e) {
+    console.warn('[api] stats failed', e)
+    return null
+  }
+}
+
+/** 拉取服务端计算的即将扣费列表 */
+export async function fetchUpcoming(
+  days = 30,
+): Promise<{ id: string; name: string; amount: number; date: string; days: number }[]> {
+  try {
+    const res = await Network.request(withAuth({ url: `/api/subscription/upcoming?days=${days}` }))
+    return (
+      unwrap<{ id: string; name: string; amount: number; date: string; days: number }[]>(
+        res as { data?: unknown },
+      ) || []
+    )
+  } catch (e) {
+    console.warn('[api] upcoming failed', e)
+    return []
+  }
+}
