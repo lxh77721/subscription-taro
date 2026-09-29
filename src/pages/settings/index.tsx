@@ -15,6 +15,7 @@ import {
   SORT_OPTIONS,
   type HomeSort,
 } from '@/utils/settings'
+import { rpx } from '@/utils/rpx'
 
 const SettingsPage = () => {
   const settings = useSubscriptionStore((s) => s.settings)
@@ -45,11 +46,11 @@ const SettingsPage = () => {
   }
 
   return (
-    <View className="min-h-full w-full bg-[#F4F4F6]" style={{ padding: '4PX 16PX 40PX' }}>
-      <Text className="block" style={{ fontSize: '24PX', fontWeight: '700', margin: '8PX 0 4PX' }}>
+    <View className="page-pad min-h-full w-full bg-[#F4F4F6]">
+      <Text className="block" style={{ fontSize: rpx(24), fontWeight: '700', margin: `${rpx(8)} 0 ${rpx(4)}` }}>
         设置
       </Text>
-      <Text className="block" style={{ fontSize: '12PX', color: '#9CA3AF', marginBottom: '14PX' }}>
+      <Text className="block" style={{ fontSize: rpx(12), color: '#9CA3AF', marginBottom: rpx(14) }}>
         币种、排序与预算
       </Text>
       <View>

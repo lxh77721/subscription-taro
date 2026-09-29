@@ -17,16 +17,17 @@ import {
   type PlanType,
   type RemindDays,
   type SubStatus,
-  CATEGORIES,
   CUSTOM_UNITS,
   PLAN_OPTIONS,
   PRESETS,
   REMIND_OPTIONS,
   STATUS_MAP,
+  allCategories,
   presetIconUrl,
   todayStr,
   nextChargeDate,
 } from '@/utils/subscription'
+import { rpx } from '@/utils/rpx'
 
 interface FormState {
   name: string
@@ -50,6 +51,8 @@ const EditPage = () => {
   const editId: string = (router.params?.id as string) || ''
   const add = useSubscriptionStore((s) => s.add)
   const update = useSubscriptionStore((s) => s.update)
+  const settings = useSubscriptionStore((s) => s.settings)
+  const updateSettings = useSubscriptionStore((s) => s.updateSettings)
 
   const [form, setForm] = useState<FormState>({
     name: '',
@@ -109,6 +112,8 @@ const EditPage = () => {
   })
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }))
+  const cats = allCategories(settings)
+  const payments = settings.payments || []
 
   /** 选择常用服务时自动带出官方图标与分类 */
   const pickPreset = (name: string) => {
@@ -142,6 +147,12 @@ const EditPage = () => {
       customNum: form.planType === 'custom' ? Number(form.customNum) || 1 : undefined,
       customUnit: form.planType === 'custom' ? form.customUnit : undefined,
     }
+    const payment = form.payment.trim() || undefined
+    // 新填写的支付方式自动加入常用列表，下次可直接点选
+    if (payment && !payments.includes(payment)) {
+      updateSettings({ payments: [...payments, payment] })
+    }
+
     const payload = {
       name: form.name.trim(),
       emoji: form.emoji.trim() || '📌',
@@ -153,7 +164,7 @@ const EditPage = () => {
       remindDays: form.remindDays,
       category: form.category,
       status: form.status,
-      payment: form.payment.trim() || undefined,
+      payment,
       note: form.note.trim(),
     }
 
@@ -168,8 +179,8 @@ const EditPage = () => {
 
     // 微信订阅消息：用户授权后注册到期提醒（openid 由后端用 code 换取，到点由服务端推送）
     if (form.remindDays > 0 && form.status === 'active' && Taro.getEnv() === Taro.ENV_TYPE.WEAPP) {
-      const accepted = await requestSubscribeReminder()
-      if (accepted) {
+      const r = await requestSubscribeReminder()
+      if (r.ok) {
         try {
           const { code } = await Taro.login()
           const saved = useSubscriptionStore.getState().list.find((s) => s.id === savedId)
@@ -189,7 +200,7 @@ const EditPage = () => {
           console.warn('[edit] register reminder skipped', e)
         }
       } else {
-        toast.info('未开启到期提醒，可在编辑中重新设置')
+        toast.info(`未开启到期提醒：${r.reason}`)
       }
     }
 
@@ -197,11 +208,14 @@ const EditPage = () => {
   }
 
   return (
-    <View className="min-h-full w-full bg-[#F4F4F6]" style={{ padding: '4PX 16PX 120PX' }}>
-      <Text className="block" style={{ fontSize: '24PX', fontWeight: '700', margin: '8PX 0 4PX' }}>
+    <View
+      className="min-h-full w-full bg-[#F4F4F6]"
+      style={{ padding: `${rpx(4)} ${rpx(16)} calc(${rpx(100)} + env(safe-area-inset-bottom))` }}
+    >
+      <Text className="block" style={{ fontSize: rpx(24), fontWeight: '700', margin: `${rpx(8)} 0 ${rpx(4)}` }}>
         {editId ? '编辑订阅' : '新增订阅'}
       </Text>
-      <Text className="block" style={{ fontSize: '12PX', color: '#9CA3AF', marginBottom: '14PX' }}>
+      <Text className="block" style={{ fontSize: rpx(12), color: '#9CA3AF', marginBottom: rpx(14) }}>
         填写订阅信息，开启智能扣费提醒
       </Text>
 
@@ -264,9 +278,20 @@ const EditPage = () => {
           </View>
 
           <View>
-            <Text className="block text-sm text-slate-600 mb-2">分类</Text>
+            <View style={{ display: 'flex', alignItems: 'center', marginBottom: rpx(8) }}>
+              <Text className="block text-sm text-slate-600" style={{ flex: 1 }}>
+                分类
+              </Text>
+              <Text
+                className="block text-xs"
+                style={{ color: '#5E9AFF' }}
+                onClick={() => Taro.navigateTo({ url: '/pages/category/index' })}
+              >
+                管理分类
+              </Text>
+            </View>
             <View className="flex flex-row flex-wrap gap-2">
-              {CATEGORIES.map((c) => (
+              {cats.map((c) => (
                 <Badge
                   key={c.value}
                   variant={form.category === c.value ? 'default' : 'outline'}
@@ -387,7 +412,34 @@ const EditPage = () => {
           </View>
 
           <View className="mb-4">
-            <Text className="block text-sm text-slate-600 mb-2">支付方式（可选）</Text>
+            <View style={{ display: 'flex', alignItems: 'center', marginBottom: rpx(8) }}>
+              <Text className="block text-sm text-slate-600" style={{ flex: 1 }}>
+                支付方式（可选）
+              </Text>
+              <Text
+                className="block text-xs"
+                style={{ color: '#5E9AFF' }}
+                onClick={() => Taro.navigateTo({ url: '/pages/payment/index' })}
+              >
+                管理支付方式
+              </Text>
+            </View>
+            {payments.length > 0 && (
+              <View className="flex flex-row flex-wrap gap-2" style={{ marginBottom: rpx(8) }}>
+                {payments.map((p) => (
+                  <Badge
+                    key={p}
+                    variant={form.payment === p ? 'default' : 'outline'}
+                    className={`rounded-full px-3 py-1 ${
+                      form.payment === p ? 'bg-[#111111] text-white' : 'bg-white text-slate-600 border-slate-300'
+                    }`}
+                    onClick={() => set({ payment: form.payment === p ? '' : p })}
+                  >
+                    {p}
+                  </Badge>
+                ))}
+              </View>
+            )}
             <View className="bg-[#F4F4F6] rounded-xl px-4 py-3">
               <Input
                 className="w-full bg-transparent border-0"
@@ -410,7 +462,7 @@ const EditPage = () => {
                   }`}
                   onClick={() => set({ remindDays: r.value })}
                 >
-                  {r.value !== 0 && <Bell size={14} color={form.remindDays === r.value ? '#fff' : '#64748B'} />}
+                  {r.value !== 0 && <Bell size={rpx(14)} color={form.remindDays === r.value ? '#fff' : '#64748B'} />}
                   <Text>{r.label}</Text>
                 </Badge>
               ))}
@@ -425,7 +477,7 @@ const EditPage = () => {
           <Text className="block text-sm font-semibold text-slate-900 mb-4">备注（可选）</Text>
           <Textarea
             className="w-full rounded-xl border-0"
-            style={{ minHeight: 80, backgroundColor: '#f1f5f9', padding: '16px' }}
+            style={{ minHeight: rpx(80), backgroundColor: '#f1f5f9', padding: rpx(16) }}
             placeholder="如：共享账号、优惠来源等"
             value={form.note}
             onInput={(e) => set({ note: e.detail.value })}
@@ -434,9 +486,16 @@ const EditPage = () => {
         </View>
       </View>
 
-      <View className="fixed left-0 right-0 px-4 pb-4" style={{ bottom: 56, backgroundColor: 'rgba(244, 244, 246, 0.95)' }}>
+      <View
+        className="fixed left-0 right-0"
+        style={{
+          bottom: 0,
+          padding: `${rpx(8)} ${rpx(16)} calc(${rpx(12)} + env(safe-area-inset-bottom))`,
+          backgroundColor: 'rgba(244, 244, 246, 0.95)',
+        }}
+      >
         <Button className="btn btn-primary btn-block" onClick={onSave}>
-          <Save size={20} color="#ffffff" />
+          <Save size={rpx(20)} color="#ffffff" />
           <Text className="ml-2 text-base font-semibold">保存</Text>
         </Button>
       </View>

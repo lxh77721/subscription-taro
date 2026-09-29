@@ -5,13 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AppIcon } from '@/components/app-icon'
 import { useSubscriptionStore } from '@/stores/subscription'
-import { useAuthStore } from '@/stores/auth'
-import { syncSubscriptions } from '@/utils/api'
+import { bootstrapSync } from '@/utils/sync'
 import {
   type Category,
   type Preset,
   type Subscription,
-  CATEGORIES,
+  allCategories,
   presetByCategory,
   presetIconUrl,
   formatMoney,
@@ -25,6 +24,7 @@ import {
   monthsSince,
   prettyDate,
 } from '@/utils/subscription'
+import { rpx } from '@/utils/rpx'
 
 type Filter = 'all' | 'soon' | Category
 
@@ -37,16 +37,7 @@ const IndexPage = () => {
 
   useDidShow(() => {
     refresh()
-    const pushSync = () => {
-      const current = useSubscriptionStore.getState().list
-      if (current.length) void syncSubscriptions(current)
-    }
-    const auth = useAuthStore.getState()
-    if (auth.token) {
-      pushSync()
-    } else {
-      void auth.login().then(pushSync)
-    }
+    void bootstrapSync()
   })
 
   const activeList = list.filter((s) => s.status === 'active')
@@ -63,7 +54,7 @@ const IndexPage = () => {
         ? soon.map((x) => x.item)
         : list.filter((s) => s.category === filter)
 
-  const groups = filter === 'all' || filter === 'soon' ? [] : groupByCategory(filtered)
+  const groups = filter === 'all' || filter === 'soon' ? [] : groupByCategory(filtered, settings)
 
   const sortList = (arr: Subscription[]): Subscription[] => {
     if (settings.homeSort === 'amount') return [...arr].sort((a, b) => b.amount - a.amount)
@@ -91,7 +82,7 @@ const IndexPage = () => {
 
   return (
     <View className="min-h-full w-full bg-[#F4F4F6]">
-      <View style={{ padding: '4PX 16PX 120PX' }}>
+      <View style={{ padding: `${rpx(4)} ${rpx(16)} ${rpx(120)}` }}>
         {/* 支出概览 */}
         <View className="ov-card">
           <Text className="block ov-label">本月订阅支出</Text>
@@ -140,7 +131,7 @@ const IndexPage = () => {
             <Button className={`chip ${filter === 'soon' ? 'on' : ''}`} onClick={() => setFilter('soon')}>
               即将扣费 <Text className="c-badge">{soon.length}</Text>
             </Button>
-            {CATEGORIES.map((c) => {
+            {allCategories(settings).map((c) => {
               const n = list.filter((s) => s.category === c.value).length
               if (!n) return null
               return (
@@ -191,8 +182,8 @@ const IndexPage = () => {
 
         {/* 订阅列表 */}
         {filtered.length === 0 ? (
-          <View style={{ textAlign: 'center', padding: '40PX 0' }}>
-            <Text className="block" style={{ fontSize: '13PX', color: '#9CA3AF' }}>
+          <View style={{ textAlign: 'center', padding: `${rpx(40)} 0` }}>
+            <Text className="block" style={{ fontSize: rpx(13), color: '#9CA3AF' }}>
               暂无订阅记录，点击右下角 + 添加
             </Text>
           </View>
@@ -220,8 +211,8 @@ const IndexPage = () => {
           ))
         )}
 
-        <View style={{ textAlign: 'center', padding: '14PX 0 4PX' }}>
-          <Text className="block" style={{ fontSize: '11PX', color: '#C4C4CC' }}>
+        <View style={{ textAlign: 'center', padding: `${rpx(14)} 0 ${rpx(4)}` }}>
+          <Text className="block" style={{ fontSize: rpx(11), color: '#C4C4CC' }}>
             已经到底啦 · 共 {list.length} 个订阅
           </Text>
         </View>
@@ -229,18 +220,18 @@ const IndexPage = () => {
 
       {/* 悬浮新增 */}
       <View className="fab" onClick={() => setChooseOpen(true)}>
-        <Text style={{ fontSize: '26PX', fontWeight: '300', lineHeight: '1' }}>+</Text>
+        <Text style={{ fontSize: rpx(26), fontWeight: '300', lineHeight: '1' }}>+</Text>
       </View>
 
       {/* 选择服务 */}
       <Dialog open={chooseOpen} onOpenChange={setChooseOpen}>
-        <DialogContent style={{ borderRadius: '20PX', background: '#fff', maxHeight: '75vh' }}>
-          <DialogHeader style={{ padding: '14PX 16PX 8PX' }}>
-            <DialogTitle style={{ fontSize: '16PX', fontWeight: '700' }}>选择服务</DialogTitle>
+        <DialogContent style={{ borderRadius: rpx(20), background: '#fff', maxHeight: '75vh' }}>
+          <DialogHeader style={{ padding: `${rpx(14)} ${rpx(16)} ${rpx(8)}` }}>
+            <DialogTitle style={{ fontSize: rpx(16), fontWeight: '700' }}>选择服务</DialogTitle>
           </DialogHeader>
-          <View style={{ padding: '0 16PX 16PX', maxHeight: '56vh', overflowY: 'auto' }}>
+          <View style={{ padding: `0 ${rpx(16)} ${rpx(16)}`, maxHeight: '56vh', overflowY: 'auto' }}>
             {presetByCategory().map((g) => (
-              <View key={g.category} style={{ marginBottom: '14PX' }}>
+              <View key={g.category} style={{ marginBottom: rpx(14) }}>
                 <Text className="block form-label">{g.label}</Text>
                 <View className="svc-grid">
                   {g.items.map((p) => (
@@ -261,9 +252,9 @@ const IndexPage = () => {
             <View className="svc-item" onClick={() => { setChooseOpen(false); goToEdit() }}>
               <View
                 className="bico"
-                style={{ width: '44PX', height: '44PX', background: '#C4C4CC', color: '#fff' }}
+                style={{ width: rpx(44), height: rpx(44), background: '#C4C4CC', color: '#fff' }}
               >
-                <Text style={{ fontSize: '20PX', lineHeight: '1' }}>+</Text>
+                <Text style={{ fontSize: rpx(20), lineHeight: '1' }}>+</Text>
               </View>
               <Text className="block si-name">自定义</Text>
             </View>
@@ -292,7 +283,9 @@ function SubRow({ item, onClick }: { item: Subscription; onClick: () => void }) 
       />
       <View className="sub-main">
         <View className="sub-name">
-          <Text style={{ opacity: dim ? 0.6 : 1 }}>{item.name}</Text>
+          <Text className="sub-title" style={{ opacity: dim ? 0.6 : 1 }}>
+            {item.name}
+          </Text>
           {item.plan.type === 'year' && <Text className="tag tag-blue">年付</Text>}
           {item.status === 'paused' && <Text className="tag tag-amber">已暂停</Text>}
           {item.status === 'cancelled' && <Text className="tag tag-gray">已退订</Text>}

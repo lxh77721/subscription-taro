@@ -4,16 +4,27 @@ import {
   Get,
   Delete,
   Body,
+  Req,
   UseGuards,
   UsePipes,
   HttpCode,
   BadRequestException,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ReminderService } from './reminder.service';
 import { AdminGuard } from '../common/admin.guard';
 import { RateLimitGuard } from '../common/rate-limit.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { LoginDto, RegisterDto, type LoginDto as TLogin, type RegisterDto as TRegister } from './reminder.dto';
+import { requireOpenid } from '../auth/current-user';
+import { WX_READY } from './wx.config';
+import {
+  LoginDto,
+  RegisterDto,
+  RegisterBatchDto,
+  type LoginDto as TLogin,
+  type RegisterDto as TRegister,
+  type RegisterBatchDto as TRegisterBatch,
+} from './reminder.dto';
 
 @Controller('reminder')
 export class ReminderController {
@@ -41,8 +52,7 @@ export class ReminderController {
     } catch (err) {
       throw new BadRequestException((err as Error).message);
     }
-    const row = await this.reminderService.register({
-      openid,
+    const row = await this.reminderService.register(openid, {
       subscriptionId: body.subscriptionId,
       remindAt: body.remindAt,
       dueDate: body.dueDate,
@@ -52,6 +62,41 @@ export class ReminderController {
       templateId: body.templateId,
     });
     return { success: true, data: { id: row.id, status: row.status } };
+  }
+
+  /**
+   * 批量注册到期提醒（限流：每 IP 每分钟 10 次）。
+   * 微信 code 一次性有效，多条提醒必须共用一次 code 换取 openid，故提供批量接口。
+   */
+  @Post('register-batch')
+  @HttpCode(200)
+  @UseGuards(new RateLimitGuard(10, 60 * 1000))
+  @UsePipes(new ZodValidationPipe(RegisterBatchDto))
+  async registerBatch(@Body() body: TRegisterBatch) {
+    let openid: string;
+    try {
+      openid = await this.reminderService.resolveOpenid(body.code);
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
+    }
+    const count = await this.reminderService.registerMany(openid, body.items);
+    return { success: true, data: { count, total: body.items.length } };
+  }
+
+  /**
+   * 立即给「当前登录用户」下发一条测试订阅消息（限流：每 IP 每分钟 5 次）。
+   * 用于真机验证整条推送链路；会消耗一次订阅消息额度。
+   */
+  @Post('test-push')
+  @HttpCode(200)
+  @UseGuards(new RateLimitGuard(5, 60 * 1000))
+  async testPush(@Req() req: Request) {
+    const openid = requireOpenid(req);
+    if (!WX_READY) {
+      return { success: false, errcode: -1, errmsg: '服务端未配置完整的微信凭证（AppID/Secret/模板ID）' };
+    }
+    const res = await this.reminderService.sendTest(openid);
+    return { success: res.errcode === 0, errcode: res.errcode, errmsg: res.errmsg };
   }
 
   /** 管理：查询提醒列表 */

@@ -1,75 +1,47 @@
 /**
- * 各 App 官方品牌图标（本地 PNG，模块化导入）
- * 说明：微信小程序 <Image> 只支持本地路径/网络路径，不支持 base64 与内联 SVG，
- * 因此统一放到 src/assets/appicons 并通过 import 交给编译器产出真实资源路径。
+ * 各 App 官方品牌图标（本地 PNG）
+ *
+ * 为什么不 import 资源：打包器会把小于阈值的图片内联成 `data:image/png;base64,...`，
+ * 运行时作为 <Image src> 会触发小程序「属性值数据量过大」告警并拖慢渲染
+ * （实测单个 src 长度超过 2 万字符，微信阈值是 2046）。
+ * 因此这里直接引用构建时拷贝到产物根目录的真实文件路径：
+ * 资源来源 src/assets/appicons/*.png —— 由 config/index.ts 的 copy 规则产出到 dist/appicons/。
  */
-import netflix from '@/assets/appicons/netflix.png'
-import spotify from '@/assets/appicons/spotify.png'
-import youtube from '@/assets/appicons/youtube.png'
-import applemusic from '@/assets/appicons/applemusic.png'
-import netease from '@/assets/appicons/netease.png'
-import qqmusic from '@/assets/appicons/qqmusic.png'
-import kugou from '@/assets/appicons/kugou.png'
-import iqiyi from '@/assets/appicons/iqiyi.png'
-import youku from '@/assets/appicons/youku.png'
-import tencent from '@/assets/appicons/tencent.png'
-import bilibili from '@/assets/appicons/bilibili.png'
-import mgtv from '@/assets/appicons/mgtv.png'
-import chatgpt from '@/assets/appicons/chatgpt.png'
-import claude from '@/assets/appicons/claude.png'
-import github from '@/assets/appicons/github.png'
-import notion from '@/assets/appicons/notion.png'
-import office from '@/assets/appicons/office.png'
-import icloud from '@/assets/appicons/icloud.png'
-import google from '@/assets/appicons/google.png'
-import baidupan from '@/assets/appicons/baidupan.png'
-import aliyundrive from '@/assets/appicons/aliyundrive.png'
-import aliyun from '@/assets/appicons/aliyun.png'
-import taobao from '@/assets/appicons/taobao.png'
-import jd from '@/assets/appicons/jd.png'
-import meituan from '@/assets/appicons/meituan.png'
-import weread from '@/assets/appicons/weread.png'
-import zhihu from '@/assets/appicons/zhihu.png'
-import xbox from '@/assets/appicons/xbox.png'
-import playstation from '@/assets/appicons/playstation.png'
-import discord from '@/assets/appicons/discord.png'
-import pwd1 from '@/assets/appicons/1password.png'
-import nordvpn from '@/assets/appicons/nordvpn.png'
-import wps from '@/assets/appicons/wps.png'
+const icon = (file: string) => `/appicons/${file}.png`
 
-/** 域名 → 官方图标资源 */
+/** 域名 → 官方图标资源路径 */
 export const APP_ICONS: Record<string, string> = {
-  'netflix.com': netflix,
-  'spotify.com': spotify,
-  'youtube.com': youtube,
-  'apple.com': applemusic,
-  'music.163.com': netease,
-  'y.qq.com': qqmusic,
-  'kugou.com': kugou,
-  'iqiyi.com': iqiyi,
-  'youku.com': youku,
-  'v.qq.com': tencent,
-  'bilibili.com': bilibili,
-  'mgtv.com': mgtv,
-  'chatgpt.com': chatgpt,
-  'claude.ai': claude,
-  'github.com': github,
-  'notion.so': notion,
-  'office.com': office,
-  'icloud.com': icloud,
-  'google.com': google,
-  'pan.baidu.com': baidupan,
-  'aliyundrive.com': aliyundrive,
-  'aliyun.com': aliyun,
-  'taobao.com': taobao,
-  'jd.com': jd,
-  'meituan.com': meituan,
-  'weread.qq.com': weread,
-  'zhihu.com': zhihu,
-  'xbox.com': xbox,
-  'playstation.com': playstation,
-  'discord.com': discord,
-  '1password.com': pwd1,
-  'nordvpn.com': nordvpn,
-  'wps.cn': wps,
+  'netflix.com': icon('netflix'),
+  'spotify.com': icon('spotify'),
+  'youtube.com': icon('youtube'),
+  'apple.com': icon('applemusic'),
+  'music.163.com': icon('netease'),
+  'y.qq.com': icon('qqmusic'),
+  'kugou.com': icon('kugou'),
+  'iqiyi.com': icon('iqiyi'),
+  'youku.com': icon('youku'),
+  'v.qq.com': icon('tencent'),
+  'bilibili.com': icon('bilibili'),
+  'mgtv.com': icon('mgtv'),
+  'chatgpt.com': icon('chatgpt'),
+  'claude.ai': icon('claude'),
+  'github.com': icon('github'),
+  'notion.so': icon('notion'),
+  'office.com': icon('office'),
+  'icloud.com': icon('icloud'),
+  'google.com': icon('google'),
+  'pan.baidu.com': icon('baidupan'),
+  'aliyundrive.com': icon('aliyundrive'),
+  'aliyun.com': icon('aliyun'),
+  'taobao.com': icon('taobao'),
+  'jd.com': icon('jd'),
+  'meituan.com': icon('meituan'),
+  'weread.qq.com': icon('weread'),
+  'zhihu.com': icon('zhihu'),
+  'xbox.com': icon('xbox'),
+  'playstation.com': icon('playstation'),
+  'discord.com': icon('discord'),
+  '1password.com': icon('1password'),
+  'nordvpn.com': icon('nordvpn'),
+  'wps.cn': icon('wps'),
 }

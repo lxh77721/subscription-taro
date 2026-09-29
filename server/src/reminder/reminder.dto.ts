@@ -28,3 +28,24 @@ export const RegisterDto = z
   })
   .strict();
 export type RegisterDto = z.infer<typeof RegisterDto>;
+
+/** 单条提醒（批量注册用，不含 code / openid） */
+const ReminderItemSchema = z
+  .object({
+    subscriptionId: z.string().min(1).max(64),
+    remindAt: z.number().int().nonnegative(),
+    dueDate: z.string().regex(DATE_RE, 'dueDate 格式应为 YYYY-MM-DD'),
+    name: z.string().min(1).max(20),
+    amount: z.string().max(16),
+    page: z.string().max(128).regex(PAGE_RE, 'page 路径非法').optional(),
+    templateId: z.string().max(64).optional(),
+  })
+  .strict();
+
+export const RegisterBatchDto = z
+  .object({
+    code: z.string().min(1, '缺少 code').max(128),
+    items: z.array(ReminderItemSchema).min(1).max(50),
+  })
+  .strict();
+export type RegisterBatchDto = z.infer<typeof RegisterBatchDto>;

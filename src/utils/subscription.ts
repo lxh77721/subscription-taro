@@ -1,5 +1,5 @@
 import Taro from '@tarojs/taro'
-import { loadSettings, currencySymbol } from './settings'
+import { type CategoryDef, type Settings, loadSettings, currencySymbol } from './settings'
 import { APP_ICONS } from './appicons'
 
 /** 本地存储 key */
@@ -9,8 +9,10 @@ export const STORAGE_KEY = 'subscription_manager_data_v4'
 export type PlanType = 'month' | 'quarter' | 'year' | 'oneTime' | 'custom' | 'free'
 /** 自定义周期单位 */
 export type CustomUnit = 'day' | 'week' | 'month' | 'year'
-/** 订阅分类（7 大类，覆盖市面上主流订阅） */
-export type Category = 'video' | 'ai' | 'cloud' | 'shopping' | 'reading' | 'game' | 'security'
+/** 内置订阅分类（7 大类，覆盖市面上主流订阅） */
+export type BuiltinCategory = 'video' | 'ai' | 'cloud' | 'shopping' | 'reading' | 'game' | 'security'
+/** 订阅分类：内置分类 + 用户自定义分类（自定义 key 形如 custom_xxx） */
+export type Category = BuiltinCategory | (string & {})
 /** 订阅状态 */
 export type SubStatus = 'active' | 'paused' | 'cancelled'
 /** 到期提醒：提前天数（0 = 不提醒） */
@@ -52,7 +54,7 @@ export interface Subscription {
 
 /* ─────────── 分类定义 ─────────── */
 
-export const CATEGORIES: { value: Category; label: string; color: string }[] = [
+export const CATEGORIES: CategoryDef[] = [
   { value: 'video', label: '影音娱乐', color: '#938BFF' },
   { value: 'ai', label: 'AI 与效率', color: '#6366F1' },
   { value: 'cloud', label: '云存储', color: '#5E9AFF' },
@@ -62,21 +64,54 @@ export const CATEGORIES: { value: Category; label: string; color: string }[] = [
   { value: 'security', label: '工具安全', color: '#EC4899' },
 ]
 
-export const CATEGORY_COLORS: Record<Category, string> = CATEGORIES.reduce(
+/** 自定义分类备选色（新增分类时依次取用） */
+export const CATEGORY_COLOR_POOL = [
+  '#8B5CF6',
+  '#14B8A6',
+  '#F97316',
+  '#3B82F6',
+  '#E11D48',
+  '#84CC16',
+  '#A855F7',
+  '#0F766E',
+]
+
+export const CATEGORY_COLORS: Record<string, string> = CATEGORIES.reduce(
   (acc, c) => {
     acc[c.value] = c.color
     return acc
   },
-  {} as Record<Category, string>,
+  {} as Record<string, string>,
 )
 
-export const CATEGORY_MAP: Record<Category, string> = CATEGORIES.reduce(
+export const CATEGORY_MAP: Record<string, string> = CATEGORIES.reduce(
   (acc, c) => {
     acc[c.value] = c.label
     return acc
   },
-  {} as Record<Category, string>,
+  {} as Record<string, string>,
 )
+
+/** 内置分类 + 用户自定义分类（未传 settings 时自动读取本地设置） */
+export function allCategories(settings?: Pick<Settings, 'customCategories'>): CategoryDef[] {
+  const custom = settings?.customCategories || loadSettings().customCategories || []
+  return [...CATEGORIES, ...custom]
+}
+
+/** 分类显示名（自定义分类优先查用户设置） */
+export function categoryLabel(key: string, settings?: Pick<Settings, 'customCategories'>): string {
+  return allCategories(settings).find((c) => c.value === key)?.label || CATEGORY_MAP[key] || '其他'
+}
+
+/** 分类主题色（用于图表与图标底色） */
+export function categoryColor(key: string, settings?: Pick<Settings, 'customCategories'>): string {
+  return allCategories(settings).find((c) => c.value === key)?.color || CATEGORY_COLORS[key] || '#9AA1BA'
+}
+
+/** 生成一个自定义分类 key */
+export function genCategoryKey(): string {
+  return `custom_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
+}
 
 /* ─────────── 状态定义 ─────────── */
 
@@ -210,38 +245,38 @@ export const PRESETS: Preset[] = [
  * 演示数据：首次安装时写入一份主流订阅样例，便于直接预览效果。
  * 只在本地无任何数据且未初始化过时执行一次（SEED_KEY 标记）。
  */
-const SEED_PLAN: { name: string; amount: number; offset: number; plan?: PlanType }[] = [
-  { name: 'Netflix', amount: 68, offset: 26 },
-  { name: 'Spotify', amount: 18, offset: 21 },
-  { name: 'YouTube Premium', amount: 38, offset: 9 },
-  { name: 'Apple Music', amount: 11, offset: 16 },
-  { name: '网易云音乐', amount: 12, offset: 27 },
-  { name: 'QQ音乐', amount: 15, offset: 12 },
-  { name: '爱奇艺', amount: 25, offset: 13 },
-  { name: '优酷', amount: 20, offset: 5 },
-  { name: '腾讯视频', amount: 25, offset: 8 },
-  { name: '哔哩哔哩', amount: 15, offset: 3 },
-  { name: '芒果TV', amount: 22, offset: 18 },
-  { name: 'ChatGPT Plus', amount: 145, offset: 14 },
-  { name: 'Claude Pro', amount: 150, offset: 7 },
-  { name: 'GitHub Copilot', amount: 72, offset: 24 },
-  { name: 'Notion', amount: 58, offset: 11 },
-  { name: 'Microsoft 365', amount: 498, offset: 120, plan: 'year' },
-  { name: 'WPS', amount: 89, offset: 200, plan: 'year' },
-  { name: 'iCloud+', amount: 21, offset: 23 },
-  { name: 'Google One', amount: 68, offset: 17 },
-  { name: '百度网盘', amount: 30, offset: 6 },
-  { name: '阿里云盘', amount: 12, offset: 19 },
-  { name: '淘宝 88VIP', amount: 888, offset: 160, plan: 'year' },
-  { name: '京东 PLUS', amount: 149, offset: 60, plan: 'year' },
-  { name: '美团外卖会员', amount: 15, offset: 20 },
-  { name: '微信读书', amount: 19, offset: 25 },
-  { name: '知乎盐选', amount: 19, offset: 15 },
-  { name: 'Xbox Game Pass', amount: 39, offset: 2 },
-  { name: 'PlayStation Plus', amount: 45, offset: 4 },
-  { name: 'Discord Nitro', amount: 68, offset: 22 },
-  { name: '1Password', amount: 50, offset: 10 },
-  { name: 'NordVPN', amount: 35, offset: 1 },
+const SEED_PLAN: { name: string; amount: number; offset: number; months: number; plan?: PlanType }[] = [
+  { name: 'Netflix', amount: 68, offset: 26, months: 14 },
+  { name: 'Spotify', amount: 18, offset: 21, months: 9 },
+  { name: 'YouTube Premium', amount: 38, offset: 9, months: 7 },
+  { name: 'Apple Music', amount: 11, offset: 16, months: 26 },
+  { name: '网易云音乐', amount: 12, offset: 27, months: 22 },
+  { name: 'QQ音乐', amount: 15, offset: 12, months: 5 },
+  { name: '爱奇艺', amount: 25, offset: 13, months: 11 },
+  { name: '优酷', amount: 20, offset: 5, months: 3 },
+  { name: '腾讯视频', amount: 25, offset: 8, months: 18 },
+  { name: '哔哩哔哩', amount: 15, offset: 3, months: 2 },
+  { name: '芒果TV', amount: 22, offset: 18, months: 6 },
+  { name: 'ChatGPT Plus', amount: 145, offset: 14, months: 8 },
+  { name: 'Claude Pro', amount: 150, offset: 7, months: 4 },
+  { name: 'GitHub Copilot', amount: 72, offset: 24, months: 12 },
+  { name: 'Notion', amount: 58, offset: 11, months: 3 },
+  { name: 'Microsoft 365', amount: 498, offset: 120, months: 24, plan: 'year' },
+  { name: 'WPS', amount: 89, offset: 200, months: 24, plan: 'year' },
+  { name: 'iCloud+', amount: 21, offset: 23, months: 30 },
+  { name: 'Google One', amount: 68, offset: 17, months: 16 },
+  { name: '百度网盘', amount: 30, offset: 6, months: 9 },
+  { name: '阿里云盘', amount: 12, offset: 19, months: 5 },
+  { name: '淘宝 88VIP', amount: 888, offset: 160, months: 26, plan: 'year' },
+  { name: '京东 PLUS', amount: 149, offset: 60, months: 12, plan: 'year' },
+  { name: '美团外卖会员', amount: 15, offset: 20, months: 7 },
+  { name: '微信读书', amount: 19, offset: 25, months: 4 },
+  { name: '知乎盐选', amount: 19, offset: 15, months: 2 },
+  { name: 'Xbox Game Pass', amount: 39, offset: 2, months: 6 },
+  { name: 'PlayStation Plus', amount: 45, offset: 4, months: 3 },
+  { name: 'Discord Nitro', amount: 68, offset: 22, months: 15 },
+  { name: '1Password', amount: 50, offset: 10, months: 20 },
+  { name: 'NordVPN', amount: 35, offset: 1, months: 1 },
 ]
 
 export function seedDemoData(): Subscription[] {
@@ -255,7 +290,8 @@ export function seedDemoData(): Subscription[] {
       emoji: preset?.emoji || '📌',
       amount: seed.amount,
       plan: { type: seed.plan || 'month' },
-      startDate: todayStr(-seed.offset),
+      // offset 决定「下次扣费日」，months 决定「已订阅历史长度」，两者叠加保证日号不变
+      startDate: todayStr(-(seed.offset + seed.months * 30)),
       remindDays: 3,
       category: preset?.category || 'video',
       domain: preset?.domain,
@@ -544,14 +580,20 @@ export function monthlyTrend(list: Subscription[], n = 6): TrendPoint[] {
 }
 
 /** 指定区间内各分类花费 */
-export function categoryStatRange(list: Subscription[], from: Date, to: Date) {
+export function categoryStatRange(
+  list: Subscription[],
+  from: Date,
+  to: Date,
+  settings?: Pick<Settings, 'customCategories'>,
+) {
+  const cats = allCategories(settings)
   const total = list.reduce((sum, s) => sum + chargeBetween(s, from, to), 0)
-  const map = {} as Record<Category, number>
-  CATEGORIES.forEach((c) => (map[c.value] = 0))
+  const map = {} as Record<string, number>
+  cats.forEach((c) => (map[c.value] = 0))
   list.forEach((s) => {
-    map[s.category] += chargeBetween(s, from, to)
+    map[s.category] = (map[s.category] || 0) + chargeBetween(s, from, to)
   })
-  return CATEGORIES.map((c) => ({
+  return cats.map((c) => ({
     ...c,
     key: c.value,
     value: Math.round(map[c.value] * 100) / 100,
@@ -650,16 +692,17 @@ export function monthAvg(list: Subscription[]): number {
   return Math.round((yearCost(list) / 12) * 100) / 100
 }
 
-export function categoryStats(list: Subscription[]) {
+export function categoryStats(list: Subscription[], settings?: Pick<Settings, 'customCategories'>) {
+  const cats = allCategories(settings)
   const total = yearCost(list)
-  const map = {} as Record<Category, number>
-  CATEGORIES.forEach((c) => (map[c.value] = 0))
+  const map = {} as Record<string, number>
+  cats.forEach((c) => (map[c.value] = 0))
   list.forEach((s) => {
     if (s.status !== 'active') return
     const mp = monthsPerPeriod(s.plan)
-    if (mp > 0) map[s.category] += (s.amount / mp) * 12
+    if (mp > 0) map[s.category] = (map[s.category] || 0) + (s.amount / mp) * 12
   })
-  return CATEGORIES.map((c) => ({
+  return cats.map((c) => ({
     ...c,
     key: c.value,
     value: Math.round(map[c.value] * 100) / 100,
@@ -694,8 +737,11 @@ export function upcoming(list: Subscription[], days = 7): { item: Subscription; 
 }
 
 /** 按分类分组（仅返回有数据的分类） */
-export function groupByCategory(list: Subscription[]): { category: Category; label: string; items: Subscription[] }[] {
-  return CATEGORIES.map((c) => ({
+export function groupByCategory(
+  list: Subscription[],
+  settings?: Pick<Settings, 'customCategories'>,
+): { category: Category; label: string; items: Subscription[] }[] {
+  return allCategories(settings).map((c) => ({
     category: c.value,
     label: c.label,
     items: list.filter((s) => s.category === c.value),
@@ -705,5 +751,8 @@ export function groupByCategory(list: Subscription[]): { category: Category; lab
 export function formatMoney(n: number): string {
   const v = Math.round(n * 100) / 100
   const sym = currencySymbol(loadSettings().currency)
-  return `${sym}${v % 1 === 0 ? v : v.toFixed(2)}`
+  const str = v % 1 === 0 ? String(v) : v.toFixed(2)
+  const [int, dec] = str.split('.')
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return `${sym}${grouped}${dec ? `.${dec}` : ''}`
 }

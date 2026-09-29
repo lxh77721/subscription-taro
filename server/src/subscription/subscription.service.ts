@@ -214,7 +214,13 @@ export class SubscriptionService {
       catMap.set(s.category, (catMap.get(s.category) || 0) + (s.amount / mp) * 12);
     });
 
-    const categories = CATEGORIES.map((c) => {
+    // 内置分类 + 用户自定义分类（数据中出现的未知分类也一并统计）
+    const extraKeys = [...catMap.keys()].filter((k) => !CATEGORIES.some((c) => c.key === k));
+    const allCats = [
+      ...CATEGORIES,
+      ...extraKeys.map((k) => ({ key: k as SubscriptionPayload['category'], label: k })),
+    ];
+    const categories = allCats.map((c) => {
       const value = Math.round((catMap.get(c.key) || 0) * 100) / 100;
       return { ...c, value, percent: yearlyEstimate > 0 ? Math.round((value / yearlyEstimate) * 100) : 0 };
     });

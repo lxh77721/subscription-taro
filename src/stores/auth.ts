@@ -11,29 +11,53 @@ interface AuthInfo {
   expireAt: number
 }
 
-interface AuthState extends AuthInfo {
+interface ProfileInfo {
+  /** 微信昵称（用户通过昵称填写键盘录入） */
+  nickname: string
+  /** 头像本地文件路径（用户通过 chooseAvatar 选择后转存） */
+  avatarUrl: string
+}
+
+interface AuthState extends AuthInfo, ProfileInfo {
   /** 是否已完成一次登录尝试（含跳过） */
   tried: boolean
   /** 恢复本地登录态 */
   restore: () => void
   /** 微信登录：code → 后端换取 openid + 令牌 */
   login: () => Promise<boolean>
+  /** 更新本地展示用的昵称 / 头像 */
+  updateProfile: (patch: Partial<ProfileInfo>) => void
   logout: () => void
 }
 
-function load(): AuthInfo {
+function load(): AuthInfo & ProfileInfo {
   try {
-    const raw = Taro.getStorageSync(AUTH_KEY) as AuthInfo | undefined
+    const raw = Taro.getStorageSync(AUTH_KEY) as (AuthInfo & Partial<ProfileInfo>) | undefined
     if (raw && raw.token && (!raw.expireAt || raw.expireAt > Date.now())) {
-      return { openid: raw.openid || '', token: raw.token, expireAt: raw.expireAt || 0 }
+      return {
+        openid: raw.openid || '',
+        token: raw.token,
+        expireAt: raw.expireAt || 0,
+        nickname: raw.nickname || '',
+        avatarUrl: raw.avatarUrl || '',
+      }
     }
   } catch (e) {
     console.warn('[auth] 读取登录态失败', e)
   }
-  return { openid: '', token: '', expireAt: 0 }
+  return { openid: '', token: '', expireAt: 0, nickname: '', avatarUrl: '' }
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+/** 写入登录态（保留已有的昵称/头像） */
+function persist(info: AuthInfo & ProfileInfo): void {
+  try {
+    Taro.setStorageSync(AUTH_KEY, info)
+  } catch (e) {
+    console.warn('[auth] 保存登录态失败', e)
+  }
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   ...load(),
   tried: false,
 
@@ -61,8 +85,15 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ tried: true })
         return false
       }
-      const info: AuthInfo = { openid: data.openid, token: data.token, expireAt: data.expireAt }
-      Taro.setStorageSync(AUTH_KEY, info)
+      const { nickname, avatarUrl } = get()
+      const info: AuthInfo & ProfileInfo = {
+        openid: data.openid,
+        token: data.token,
+        expireAt: data.expireAt,
+        nickname,
+        avatarUrl,
+      }
+      persist(info)
       set({ ...info, tried: true })
       return true
     } catch (e) {
@@ -72,9 +103,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  updateProfile: (patch) => {
+    const next = { ...load(), ...get(), ...patch } as AuthInfo & ProfileInfo
+    persist({ openid: next.openid, token: next.token, expireAt: next.expireAt, nickname: next.nickname, avatarUrl: next.avatarUrl })
+    set(patch)
+  },
+
   logout: () => {
     Taro.removeStorageSync(AUTH_KEY)
-    set({ openid: '', token: '', expireAt: 0, tried: true })
+    set({ openid: '', token: '', expireAt: 0, nickname: '', avatarUrl: '', tried: true })
   },
 }))
 

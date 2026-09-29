@@ -1,32 +1,68 @@
 import { Text, View } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import {
+  BellRing,
+  CreditCard,
+  FileDown,
+  Info,
+  LayoutGrid,
+  Lock,
+  MessageCircle,
+  Target,
+  Trash2,
+} from 'lucide-react-taro'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { AvatarPicker } from '@/components/avatar-picker'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from '@/components/ui/toast'
-import { AppIcon } from '@/components/app-icon'
 import { useSubscriptionStore } from '@/stores/subscription'
+import { useAuthStore } from '@/stores/auth'
+import { allCategories, formatMoney, upcoming, yearCost } from '@/utils/subscription'
+import { persistAvatar } from '@/utils/profile'
+import { pullFromCloud, pushToCloud } from '@/utils/sync'
 import {
-  CATEGORIES,
-  formatMoney,
-  presetIconUrl,
-  upcoming,
-  yearCost,
-  categoryStats,
-} from '@/utils/subscription'
+  type ExportRange,
+  billFileName,
+  billSummary,
+  buildBillCsv,
+  copyText,
+  filterByRange,
+  saveCsvFile,
+  shareFile,
+} from '@/utils/export'
+import { rpx } from '@/utils/rpx'
 
 interface MenuItem {
-  icon: string
+  icon: ReactNode
   title: string
   value?: string
   onClick: () => void
 }
 
+/** 相对时间描述 */
+function fromNow(ts: number): string {
+  if (!ts) return '未备份'
+  const diff = Date.now() - ts
+  if (diff < 60_000) return '刚刚'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`
+  return `${Math.floor(diff / 86_400_000)} 天前`
+}
+
 const ProfilePage = () => {
   const list = useSubscriptionStore((s) => s.list)
+  const settings = useSubscriptionStore((s) => s.settings)
   const refresh = useSubscriptionStore((s) => s.refresh)
-  const [categoryOpen, setCategoryOpen] = useState(false)
+  const nickname = useAuthStore((s) => s.nickname)
+  const avatarUrl = useAuthStore((s) => s.avatarUrl)
+  const openid = useAuthStore((s) => s.openid)
+  const updateProfile = useAuthStore((s) => s.updateProfile)
+
   const [exportOpen, setExportOpen] = useState(false)
+  const [range, setRange] = useState<ExportRange>('recent3')
+  const [busy, setBusy] = useState(false)
 
   useDidShow(() => {
     refresh()
@@ -35,85 +71,165 @@ const ProfilePage = () => {
   const yearly = yearCost(list)
   const pending = upcoming(list, 7).length
   const cancelled = list.filter((s) => s.status !== 'active')
-  const cats = categoryStats(list)
+  const catCount = allCategories(settings).length
+  const payCount = (settings.payments || []).length
+  const notifyOn = settings.notifyAuthorized
+  const year = new Date().getFullYear()
+  const rowsForExport = filterByRange(list, { range, year })
+
+  const ICO = '#111111'
+  const go = (url: string) => Taro.navigateTo({ url })
 
   const manageMenus: MenuItem[] = [
     {
-      icon: '🗂',
+      icon: <LayoutGrid size={rpx(16)} color={ICO} />,
       title: '分类管理',
-      value: `${CATEGORIES.length} 个分类`,
-      onClick: () => setCategoryOpen(true),
+      value: `${catCount} 个分类`,
+      onClick: () => go('/pages/category/index'),
     },
-    { icon: '💳', title: '支付方式', value: '3 张卡', onClick: () => toast.info('支付方式管理开发中') },
     {
-      icon: '🎯',
+      icon: <CreditCard size={rpx(16)} color={ICO} />,
+      title: '支付方式',
+      value: payCount ? `${payCount} 种方式` : '未设置',
+      onClick: () => go('/pages/payment/index'),
+    },
+    {
+      icon: <Target size={rpx(16)} color={ICO} />,
       title: '月度预算',
-      value: `${formatMoney(useSubscriptionStore.getState().settings.monthlyBudget)} / 月`,
-      onClick: () => Taro.navigateTo({ url: '/pages/settings/index' }),
+      value: `${formatMoney(settings.monthlyBudget)} / 月`,
+      onClick: () => go('/pages/settings/index'),
     },
     {
-      icon: '🔔',
+      icon: <BellRing size={rpx(16)} color={ICO} />,
       title: '提醒与通知',
-      value: '已开启 4 项',
+      value: notifyOn ? '服务通知已开启' : '未开启服务通知',
       onClick: () => Taro.switchTab({ url: '/pages/reminder/index' }),
     },
   ]
 
+  const backup = async () => {
+    setBusy(true)
+    const ok = await pushToCloud()
+    setBusy(false)
+    if (ok) toast.success('已备份到云端')
+    else toast.warning('备份失败，请检查网络或服务端配置')
+  }
+
+  const restore = () => {
+    Taro.showModal({
+      title: '从云端恢复',
+      content: `将用云端数据覆盖本机当前的 ${list.length} 条订阅，确定继续？`,
+      success: async (res) => {
+        if (!res.confirm) return
+        setBusy(true)
+        const n = await pullFromCloud()
+        setBusy(false)
+        if (n >= 0) toast.success(`已恢复 ${n} 条订阅`)
+        else toast.warning('恢复失败，请检查网络或服务端配置')
+      },
+    })
+  }
+
   const dataMenus: MenuItem[] = [
-    { icon: '📄', title: '导出账单', value: 'CSV / PDF', onClick: () => setExportOpen(true) },
     {
-      icon: '🔄',
-      title: '同步微信/支付宝账单',
-      value: '2 小时前',
-      onClick: () => toast.info('正在从微信支付同步…'),
+      icon: <FileDown size={rpx(16)} color={ICO} />,
+      title: '导出账单',
+      value: 'CSV',
+      onClick: () => setExportOpen(true),
     },
     {
-      icon: '🗑',
+      icon: <Info size={rpx(16)} color={ICO} />,
+      title: '备份到云端',
+      value: fromNow(settings.lastSyncAt),
+      onClick: backup,
+    },
+    {
+      icon: <Info size={rpx(16)} color={ICO} />,
+      title: '从云端恢复',
+      value: openid ? '已登录' : '未登录',
+      onClick: restore,
+    },
+    {
+      icon: <Trash2 size={rpx(16)} color={ICO} />,
       title: '退订回收站',
       value: `${cancelled.length} 项`,
-      onClick: () => toast.info(`回收站中有 ${cancelled.length} 项`),
+      onClick: () => go('/pages/recycle/index'),
     },
   ]
 
   const otherMenus: MenuItem[] = [
-    { icon: '🔒', title: '隐私与安全', onClick: () => toast.info('数据仅存储于本机') },
-    { icon: '💬', title: '帮助与反馈', onClick: () => toast.info('感谢反馈，我们会尽快处理') },
-    { icon: 'ℹ', title: '关于订阅管家', value: 'v1.0.0', onClick: () => toast.info('订阅管家 v1.0.0') },
+    { icon: <Lock size={rpx(16)} color={ICO} />, title: '隐私与安全', onClick: () => go('/pages/info/index?type=privacy') },
+    { icon: <MessageCircle size={rpx(16)} color={ICO} />, title: '帮助与反馈', onClick: () => go('/pages/info/index?type=help') },
+    { icon: <Info size={rpx(16)} color={ICO} />, title: '关于订阅管家', value: 'v1.0.0', onClick: () => go('/pages/info/index?type=about') },
   ]
 
-  const renderMenu = (m: MenuItem, last: boolean) => (
+  const renderMenu = (m: MenuItem) => (
     <View key={m.title} className="menu-row" onClick={m.onClick}>
-      <Text className="mr-ico">{m.icon}</Text>
-      <Text style={{ fontSize: '13.5PX', fontWeight: '500' }}>{m.title}</Text>
+      <View className="mr-ico">{m.icon}</View>
+      <Text className="mr-title">{m.title}</Text>
       {!!m.value && <Text className="mr-v">{m.value}</Text>}
       <Text className="mr-arrow">›</Text>
-      {!last && <View style={{ display: 'none' }} />}
     </View>
   )
 
+  const onPickAvatar = async (tempPath: string) => {
+    if (!tempPath) return
+    const saved = await persistAvatar(tempPath)
+    updateProfile({ avatarUrl: saved })
+    toast.success('头像已更新')
+  }
+
+  const exportFile = async () => {
+    const csv = buildBillCsv(list, { range, year })
+    const name = billFileName({ range, year })
+    setExportOpen(false)
+    try {
+      const filePath = await saveCsvFile(name, csv)
+      if (Taro.getEnv() === Taro.ENV_TYPE.WEAPP) {
+        const shared = await shareFile(filePath)
+        if (shared) {
+          toast.success('账单已生成，可在聊天中打开')
+        } else {
+          const copied = await copyText(csv)
+          toast.info(copied ? '文件已保存，表格内容已复制' : `文件已保存：${filePath}`)
+        }
+      } else {
+        toast.success(`${name} 已下载`)
+      }
+    } catch (e) {
+      toast.warning(`导出失败：${(e as Error).message || '请稍后重试'}`)
+    }
+  }
+
+  const copyCsv = async () => {
+    const csv = buildBillCsv(list, { range, year })
+    setExportOpen(false)
+    const ok = await copyText(csv)
+    if (ok) toast.success('表格内容已复制，可粘贴到 Excel')
+    else toast.warning('复制失败，请稍后重试')
+  }
+
+  const initial = (nickname || '用').trim().slice(0, 1)
+
   return (
-    <View className="min-h-full w-full bg-[#F4F4F6]" style={{ padding: '4PX 16PX 40PX' }}>
-      {/* 用户信息 */}
+    <View className="page-pad min-h-full w-full bg-[#F4F4F6]">
+      {/* 用户信息（微信头像昵称填写能力） */}
       <View className="profile-card">
-        <View style={{ display: 'flex', alignItems: 'center', gap: '14PX' }}>
-          <View
-            style={{
-              width: '54PX',
-              height: '54PX',
-              borderRadius: '27PX',
-              background: 'linear-gradient(135deg,#7C5CFF,#111)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text style={{ fontSize: '19PX', fontWeight: '700', color: '#fff' }}>林</Text>
+        <View style={{ display: 'flex', alignItems: 'center', gap: rpx(14) }}>
+          <AvatarPicker url={avatarUrl} initial={initial} onPick={(p) => void onPickAvatar(p)} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Input
+              type="nickname"
+              className="pc-name border-0 bg-transparent h-auto px-0 py-0"
+              placeholder="点击填写昵称"
+              value={nickname}
+              maxlength={20}
+              onInput={(e) => updateProfile({ nickname: e.detail.value })}
+            />
+            <Text className="block pc-sub">
+              {openid ? '微信用户 · 数据已按账号隔离' : '未登录 · 数据仅存本机'} · 已管理 {list.length} 个订阅
+            </Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text className="block pc-name">林小满</Text>
-            <Text className="block pc-sub">微信用户 · 已管理 {list.length} 个订阅</Text>
-          </View>
-          <Text className="tag tag-dark">PRO</Text>
         </View>
 
         <View className="pc-stats">
@@ -136,104 +252,67 @@ const ProfilePage = () => {
       <View className="sec-title">
         <Text className="st-title">订阅管理</Text>
       </View>
-      <View className="menu-card">
-        {manageMenus.map((m) => renderMenu(m, false))}
-      </View>
+      <View className="menu-card">{manageMenus.map((m) => renderMenu(m))}</View>
 
       {/* 数据与导出 */}
       <View className="sec-title">
         <Text className="st-title">数据与导出</Text>
       </View>
-      <View className="menu-card">
-        {dataMenus.map((m) => renderMenu(m, false))}
-      </View>
+      <View className="menu-card">{dataMenus.map((m) => renderMenu(m))}</View>
 
       {/* 其他 */}
       <View className="sec-title">
         <Text className="st-title">其他</Text>
       </View>
-      <View className="menu-card">
-        {otherMenus.map((m) => renderMenu(m, false))}
-      </View>
+      <View className="menu-card">{otherMenus.map((m) => renderMenu(m))}</View>
 
-      <Text className="block" style={{ fontSize: '11PX', color: '#C4C4CC', textAlign: 'center' }}>
-        数据仅存储于本机 · 已启用端到端加密
+      <Text className="block" style={{ fontSize: rpx(11), color: '#C4C4CC', textAlign: 'center' }}>
+        {busy ? '同步中…' : '订阅数据默认存本机，登录后按微信账号备份到云端'}
       </Text>
-
-      {/* 分类管理 */}
-      <Dialog open={categoryOpen} onOpenChange={setCategoryOpen}>
-        <DialogContent style={{ borderRadius: '20PX', background: '#fff', maxHeight: '70vh' }}>
-          <DialogHeader style={{ padding: '14PX 16PX 8PX' }}>
-            <DialogTitle style={{ fontSize: '16PX', fontWeight: '700' }}>分类管理</DialogTitle>
-          </DialogHeader>
-          <View style={{ padding: '0 16PX 16PX', maxHeight: '52vh', overflowY: 'auto' }}>
-            {cats.map((c) => {
-              const count = list.filter((s) => s.category === c.key).length
-              return (
-                <View key={c.key} className="opt-row">
-                  <AppIcon name={c.label} category={c.key} emoji="🗂" url={presetIconUrl('')} size={34} />
-                  <View style={{ flex: 1 }}>
-                    <Text className="block" style={{ fontSize: '13.5PX', fontWeight: '500' }}>
-                      {c.label}
-                    </Text>
-                    <Text className="block or-desc">
-                      {count} 个订阅 · {formatMoney(c.value)} / 月
-                    </Text>
-                  </View>
-                  <Text className="or-right" style={{ color: '#C4C4CC', fontSize: '16PX' }}>
-                    ≡
-                  </Text>
-                </View>
-              )
-            })}
-            <Button className="btn btn-outline btn-block" style={{ marginTop: '12PX' }} onClick={() => toast.info('新增分类（暂未开放）')}>
-              + 新增分类
-            </Button>
-          </View>
-        </DialogContent>
-      </Dialog>
 
       {/* 导出账单 */}
       <Dialog open={exportOpen} onOpenChange={setExportOpen}>
-        <DialogContent style={{ borderRadius: '20PX', background: '#fff', maxHeight: '70vh' }}>
-          <DialogHeader style={{ padding: '14PX 16PX 8PX' }}>
-            <DialogTitle style={{ fontSize: '16PX', fontWeight: '700' }}>导出账单</DialogTitle>
+        <DialogContent style={{ borderRadius: rpx(20), background: '#fff', maxHeight: '70vh' }}>
+          <DialogHeader style={{ padding: `${rpx(14)} ${rpx(16)} ${rpx(8)}` }}>
+            <DialogTitle style={{ fontSize: rpx(16), fontWeight: '700' }}>导出账单</DialogTitle>
           </DialogHeader>
-          <View style={{ padding: '0 16PX 16PX' }}>
+          <View style={{ padding: `0 ${rpx(16)} ${rpx(16)}` }}>
             <Text className="block form-label">时间范围</Text>
-            <View className="chips" style={{ marginBottom: '14PX' }}>
-              <Text className="chip on">近 3 个月</Text>
-              <Text className="chip">2026 年</Text>
-              <Text className="chip">全部</Text>
+            <View className="chips" style={{ marginBottom: rpx(10) }}>
+              <Text className={`chip ${range === 'recent3' ? 'on' : ''}`} onClick={() => setRange('recent3')}>
+                近 3 个月
+              </Text>
+              <Text className={`chip ${range === 'year' ? 'on' : ''}`} onClick={() => setRange('year')}>
+                {year} 年
+              </Text>
+              <Text className={`chip ${range === 'all' ? 'on' : ''}`} onClick={() => setRange('all')}>
+                全部
+              </Text>
             </View>
+            <Text className="block or-desc" style={{ marginBottom: rpx(12) }}>
+              本次导出 {billSummary(rowsForExport)}
+            </Text>
 
             <View className="opt-row">
               <View style={{ flex: 1 }}>
-                <Text className="block" style={{ fontSize: '13.5PX', fontWeight: '500' }}>
-                  CSV 表格
+                <Text className="block" style={{ fontSize: rpx(13.5), fontWeight: '500' }}>
+                  CSV 文件
                 </Text>
-                <Text className="block or-desc">可用 Excel 打开，便于二次统计</Text>
+                <Text className="block or-desc">生成文件后可转发到微信聊天，用表格应用打开</Text>
               </View>
-              <Text className="or-right tag tag-dark">默认</Text>
-            </View>
-            <View className="opt-row">
-              <View style={{ flex: 1 }}>
-                <Text className="block" style={{ fontSize: '13.5PX', fontWeight: '500' }}>
-                  PDF 账单
-                </Text>
-                <Text className="block or-desc">含图表，适合报销与存档</Text>
-              </View>
+              <Text className="or-right tag tag-dark">推荐</Text>
             </View>
 
+            <Button className="btn btn-primary btn-block" style={{ marginTop: rpx(14) }} onClick={() => void exportFile()}>
+              生成 CSV 文件
+            </Button>
             <Button
-              className="btn btn-primary btn-block"
-              style={{ marginTop: '14PX' }}
-              onClick={() => {
-                setExportOpen(false)
-                toast.success('账单已生成，请在「导出记录」查看')
-              }}
+              variant="outline"
+              className="btn btn-block"
+              style={{ marginTop: rpx(10) }}
+              onClick={() => void copyCsv()}
             >
-              生成账单
+              复制表格内容
             </Button>
           </View>
         </DialogContent>

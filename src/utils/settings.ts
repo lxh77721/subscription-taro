@@ -7,6 +7,13 @@ export type HomeSort = 'date' | 'amount' | 'name'
 /** 双语文本：zh/en */
 export type Bi = { zh: string; en: string }
 
+/** 分类定义（内置分类与自定义分类共用） */
+export interface CategoryDef {
+  value: string
+  label: string
+  color: string
+}
+
 export interface Settings {
   currency: string // 币种 key，如 CNY/USD
   theme: ThemeMode
@@ -25,7 +32,20 @@ export interface Settings {
   remindTime: string
   /** 免打扰时段（22:00 - 08:00） */
   quietHours: boolean
+  /** 用户自定义分类（在 7 个内置分类之外新增） */
+  customCategories: CategoryDef[]
+  /** 常用支付方式（新增订阅时可快选） */
+  payments: string[]
+  /** 是否已授权微信服务通知（订阅消息） */
+  notifyAuthorized: boolean
+  /** 上次授权时间 */
+  notifyAuthorizedAt: number
+  /** 上次把本地数据备份到云端的时间 */
+  lastSyncAt: number
 }
+
+/** 默认常用支付方式 */
+export const DEFAULT_PAYMENTS = ['微信支付', '支付宝', '银行卡']
 
 export const SETTINGS_KEY = 'app_settings'
 
@@ -73,6 +93,11 @@ export const DEFAULT_SETTINGS: Settings = {
   largeAmount: 100,
   remindTime: '09:00',
   quietHours: true,
+  customCategories: [],
+  payments: [...DEFAULT_PAYMENTS],
+  notifyAuthorized: false,
+  notifyAuthorizedAt: 0,
+  lastSyncAt: 0,
 }
 
 export function loadSettings(): Settings {

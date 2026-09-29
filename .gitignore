@@ -55,3 +55,6 @@ server/data/
 node-compile-cache/
 /logs
 .codegraph/
+
+server/.data/
+.data/

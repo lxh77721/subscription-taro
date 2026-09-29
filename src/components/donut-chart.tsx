@@ -69,27 +69,11 @@ export function DonutChart({ slices, centerValue, centerLabel }: Props) {
   }, [slices, cid])
 
   return (
-    <View style={{ position: 'relative', width: '108PX', height: '108PX' }}>
+    <View className="donut-box">
       <Canvas type="2d" id={cid} className="donut-canvas" />
-      <View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Text className="block" style={{ fontSize: '17PX', fontWeight: '700', letterSpacing: '-0.5PX' }}>
-          {centerValue}
-        </Text>
-        <Text className="block" style={{ fontSize: '9.5PX', color: '#9CA3AF' }}>
-          {centerLabel}
-        </Text>
+      <View className="donut-center">
+        <Text className="dc-n">{centerValue}</Text>
+        <Text className="dc-l">{centerLabel}</Text>
       </View>
     </View>
   )

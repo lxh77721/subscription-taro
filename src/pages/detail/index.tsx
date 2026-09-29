@@ -1,6 +1,7 @@
 import { Text, View } from '@tarojs/components'
 import Taro, { useLoad, useRouter } from '@tarojs/taro'
 import { useState } from 'react'
+import { Clock } from 'lucide-react-taro'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/toast'
 import {
@@ -17,7 +18,7 @@ import {
 import { AppIcon } from '@/components/app-icon'
 import { useSubscriptionStore } from '@/stores/subscription'
 import {
-  CATEGORY_MAP,
+  categoryLabel,
   REMIND_LABEL,
   STATUS_MAP,
   formatMoney,
@@ -34,11 +35,13 @@ import {
   chargeHistory,
   periodProgress,
 } from '@/utils/subscription'
+import { rpx } from '@/utils/rpx'
 
 const DetailPage = () => {
   const router = useRouter()
   const id: string = (router.params?.id as string) || ''
   const item = useSubscriptionStore((s) => s.list.find((x) => x.id === id))
+  const settings = useSubscriptionStore((s) => s.settings)
   const refresh = useSubscriptionStore((s) => s.refresh)
   const remove = useSubscriptionStore((s) => s.remove)
   const setStatus = useSubscriptionStore((s) => s.setStatus)
@@ -70,7 +73,7 @@ const DetailPage = () => {
   if (!item) {
     return (
       <View className="min-h-full w-full bg-[#F4F4F6] flex items-center justify-center">
-        <Text className="block" style={{ fontSize: '13PX', color: '#9CA3AF' }}>
+        <Text className="block" style={{ fontSize: rpx(13), color: '#9CA3AF' }}>
           {loaded ? '订阅不存在或已删除' : '加载中…'}
         </Text>
       </View>
@@ -86,7 +89,10 @@ const DetailPage = () => {
   const progress = periodProgress(item)
 
   return (
-    <View className="min-h-full w-full bg-[#F4F4F6]" style={{ padding: '4PX 16PX 150PX' }}>
+    <View
+      className="min-h-full w-full bg-[#F4F4F6]"
+      style={{ padding: `${rpx(4)} ${rpx(16)} calc(${rpx(24)} + env(safe-area-inset-bottom))` }}
+    >
       {/* 头部 */}
       <View className="detail-hero">
         <View className="dh-row">
@@ -100,7 +106,7 @@ const DetailPage = () => {
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text className="block dh-name">{item.name}</Text>
             <Text className="block dh-cat">
-              {CATEGORY_MAP[item.category]} · {STATUS_MAP[item.status]}
+              {categoryLabel(item.category, settings)} · {STATUS_MAP[item.status]}
             </Text>
           </View>
           {item.status === 'active' ? (
@@ -122,8 +128,8 @@ const DetailPage = () => {
       {/* 倒计时 */}
       {days >= 0 && (
         <View className="countdown">
-          <Text style={{ fontSize: '20PX' }}>⏰</Text>
-          <View>
+          <Clock size={rpx(20)} color="#B45309" />
+          <View style={{ minWidth: 0 }}>
             <Text className="block cd-num">{days === 0 ? '今天扣费' : `${days} 天后扣费`}</Text>
             <Text className="block cd-txt">
               {prettyDate(next as string)}
@@ -170,14 +176,14 @@ const DetailPage = () => {
 
       {/* 本期进度 */}
       <View className="card tight">
-        <View style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8PX' }}>
-          <Text style={{ fontSize: '12PX', color: '#6B7280' }}>本期已使用</Text>
-          <Text style={{ fontSize: '12PX', fontWeight: '700' }}>{progress}%</Text>
+        <View style={{ display: 'flex', justifyContent: 'space-between', marginBottom: rpx(8) }}>
+          <Text style={{ fontSize: rpx(12), color: '#6B7280' }}>本期已使用</Text>
+          <Text style={{ fontSize: rpx(12), fontWeight: '700' }}>{progress}%</Text>
         </View>
         <View className="bar-track">
           <View className="bar-fill" style={{ width: `${progress}%` }} />
         </View>
-        <Text className="block" style={{ fontSize: '11PX', color: '#9CA3AF', marginTop: '10PX' }}>
+        <Text className="block" style={{ fontSize: rpx(11), color: '#9CA3AF', marginTop: rpx(10) }}>
           {days >= 0 ? `${days} 天后进入下一个计费周期` : formatCountdown(item)}
         </Text>
       </View>
@@ -189,7 +195,7 @@ const DetailPage = () => {
       </View>
       <View className="card tight">
         {history.length === 0 ? (
-          <Text className="block" style={{ fontSize: '12PX', color: '#9CA3AF' }}>
+          <Text className="block" style={{ fontSize: rpx(12), color: '#9CA3AF' }}>
             暂无扣费记录
           </Text>
         ) : (
@@ -216,10 +222,10 @@ const DetailPage = () => {
       {/* 备注 */}
       {!!item.note && (
         <View className="card tight">
-          <Text className="block form-label" style={{ marginBottom: '6PX' }}>
+          <Text className="block form-label" style={{ marginBottom: rpx(6) }}>
             备注
           </Text>
-          <Text className="block" style={{ fontSize: '12.5PX', color: '#6B7280', lineHeight: '1.6' }}>
+          <Text className="block" style={{ fontSize: rpx(12.5), color: '#6B7280', lineHeight: '1.6' }}>
             {item.note}
           </Text>
         </View>
@@ -240,7 +246,7 @@ const DetailPage = () => {
 
       <Button
         className="btn btn-primary btn-block"
-        style={{ marginTop: '10PX' }}
+        style={{ marginTop: rpx(10) }}
         onClick={() => toast.success('已加入续费提醒清单')}
       >
         🔔 设置续费提醒
@@ -248,11 +254,11 @@ const DetailPage = () => {
 
       <AlertDialog>
         <AlertDialogTrigger>
-          <Button className="btn btn-ghost btn-block" style={{ marginTop: '10PX' }}>
+          <Button className="btn btn-ghost btn-block" style={{ marginTop: rpx(10) }}>
             删除该订阅
           </Button>
         </AlertDialogTrigger>
-        <AlertDialogContent style={{ borderRadius: '18PX' }}>
+        <AlertDialogContent style={{ borderRadius: rpx(18) }}>
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
           </AlertDialogHeader>

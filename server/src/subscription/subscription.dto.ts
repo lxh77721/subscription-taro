@@ -21,7 +21,12 @@ export const SubscriptionSchema = z
     startDate: z.string().regex(DATE_RE, 'startDate 格式应为 YYYY-MM-DD'),
     endDate: z.string().regex(DATE_RE, 'endDate 格式应为 YYYY-MM-DD').optional(),
     remindDays: z.union([z.literal(0), z.literal(1), z.literal(3), z.literal(7)]),
-    category: z.enum(['video', 'ai', 'cloud', 'shopping', 'reading', 'game', 'security']),
+    // 内置分类 + 用户自定义分类（自定义 key 形如 custom_xxx）
+    category: z
+      .string()
+      .min(1)
+      .max(16)
+      .regex(/^[a-z][a-z0-9_]*$/, 'category 仅支持小写字母、数字与下划线'),
     domain: z.string().max(64).optional(),
     payment: z.string().max(40).optional(),
     status: z.enum(['active', 'paused', 'cancelled']),

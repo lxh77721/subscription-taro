@@ -59,6 +59,18 @@ export async function fetchStats(): Promise<ServerStats | null> {
   }
 }
 
+/** 拉取云端（按 openid 隔离）的订阅列表，用于换设备恢复数据 */
+export async function fetchSubscriptions(): Promise<Subscription[] | null> {
+  try {
+    const res = await Network.request(withAuth({ url: '/api/subscription/list' }))
+    const data = unwrap<Subscription[]>(res as { data?: unknown })
+    return Array.isArray(data) ? data : null
+  } catch (e) {
+    console.warn('[api] fetch list failed', e)
+    return null
+  }
+}
+
 /** 拉取服务端计算的即将扣费列表 */
 export async function fetchUpcoming(
   days = 30,

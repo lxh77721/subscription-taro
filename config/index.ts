@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import type { Root } from 'postcss';
 import tailwindcss from '@tailwindcss/postcss';
 import { UnifiedViteWeappTailwindcssPlugin } from 'weapp-tailwindcss/vite';
 import { defineConfig, type UserConfigExport } from '@tarojs/cli';
@@ -16,6 +17,26 @@ const resolvePort = (value: string | undefined, fallback: number): number => {
   const port = Number(value);
   return Number.isInteger(port) && port > 0 && port < 65536 ? port : fallback;
 };
+
+/**
+ * 微信小程序 WXSS 只支持 CSS 子集：不支持属性选择器、:has()、:is()、:where()。
+ * shadcn 组件里的 data-[state=open]、group/field 等 Tailwind v4 变体会生成这类规则，
+ * 开发者工具会报 "WXSS 文件编译错误 ... error at token `[`"。
+ * 这些变体依赖 Radix 的 data-* 属性，小程序端本就不生效，直接在产出阶段剔除。
+ * 注意：只匹配「未转义」的 [ ，避免误伤 w-[calc(...)] 这类被转义的任意值类名。
+ */
+const UNSUPPORTED_SELECTOR = /(?<!\\)\[|:has\(|:is\(|:where\(/;
+
+const createWxssCompatPlugin = () => ({
+  postcssPlugin: 'wxss-compat-strip-unsupported-selectors',
+  OnceExit(root: Root) {
+    root.walkRules((rule) => {
+      if (UNSUPPORTED_SELECTOR.test(rule.selector)) {
+        rule.remove();
+      }
+    });
+  },
+});
 
 const h5Port = resolvePort(process.env.PORT, 5000);
 const serverPort = resolvePort(process.env.SERVER_PORT, 3000);
@@ -107,13 +128,6 @@ export default defineConfig<'vite'>(async (merge, _env) => {
       ),
       TARO_ENV: JSON.stringify(process.env.TARO_ENV),
     },
-    copy: {
-      patterns: [
-        // 拷贝各 app 官方图标到产物根目录，运行时以 /appicons/xxx.png 引用（微信<image>不支持base64）
-        { from: path.resolve(__dirname, '..', 'src/assets/appicons'), to: 'appicons' },
-      ],
-      options: {},
-    },
     ...(process.env.TARO_ENV === 'tt' && {
       tt: {
         appid: process.env.TARO_APP_TT_APPID,
@@ -126,12 +140,19 @@ export default defineConfig<'vite'>(async (merge, _env) => {
       type: 'vite',
       vitePlugins: [
         {
-          // 关闭图片内联：保证 appicons 以独立文件产出（微信小程序 <image> 对 base64 支持不稳定）
-          name: 'assets-no-inline-plugin',
-          config() {
-            return {
-              build: { assetsInlineLimit: 0 },
-            };
+          // 品牌图标：微信小程序 <image src> 拿到超长 base64 会告警且影响渲染性能
+          // （实测单个 src 超过 2 万字符，微信阈值 2046），所以不走资源 import，
+          // 而是把 PNG 原样拷到产物根目录，运行时用 /appicons/xxx.png 引用。
+          // Taro 的 copy 配置在 vite 编译链下不生效，这里在每次构建结束时同步一次。
+          name: 'copy-appicons-plugin',
+          closeBundle() {
+            const from = path.resolve(__dirname, '..', 'src/assets/appicons');
+            if (!fs.existsSync(from)) return;
+            const to = path.resolve(__dirname, '..', outputRoot, 'appicons');
+            fs.mkdirSync(to, { recursive: true });
+            for (const file of fs.readdirSync(from)) {
+              fs.copyFileSync(path.join(from, file), path.join(to, file));
+            }
           },
         },
         {
@@ -140,6 +161,16 @@ export default defineConfig<'vite'>(async (merge, _env) => {
             // 通过 postcss 配置注册 tailwindcss 插件
             if (typeof config.css?.postcss === 'object') {
               config.css?.postcss.plugins?.unshift(tailwindcss());
+            }
+          },
+        },
+        {
+          // 小程序端剔除 WXSS 不支持的选择器（属性选择器 / :has / :is / :where），避免开发者工具编译报错
+          name: 'wxss-compat-plugin',
+          config(config) {
+            if (isH5) return;
+            if (typeof config.css?.postcss === 'object') {
+              config.css?.postcss.plugins?.push(createWxssCompatPlugin());
             }
           },
         },

@@ -1,5 +1,6 @@
 import Taro from '@tarojs/taro'
 import { Network } from '@/network'
+import { getToken } from '@/stores/auth'
 
 /**
  * 确保已获取用户 openid。
@@ -27,6 +28,73 @@ export async function ensureOpenid(): Promise<string> {
     console.warn('[Reminder] ensureOpenid failed', e)
     return ''
   }
+}
+
+/** 单条提醒登记参数（不含 openid / code） */
+export interface ReminderItem {
+  subscriptionId: string
+  remindAt: number
+  dueDate: string
+  name: string
+  amount: string
+  page?: string
+  templateId?: string
+}
+
+/**
+ * 批量登记到期提醒。
+ * 微信 code 一次性有效，多条提醒必须共用同一次 wx.login 的 code，因此走批量接口。
+ * @returns 成功登记的条数
+ */
+export async function registerReminders(items: ReminderItem[], code: string): Promise<number> {
+  if (!items.length || !code) return 0
+  try {
+    const res = await Network.request({
+      url: '/api/reminder/register-batch',
+      method: 'POST',
+      data: { code, items },
+    })
+    const data = (res?.data as { data?: { count?: number } })?.data
+    return Number(data?.count || 0)
+  } catch (e) {
+    console.warn('[Reminder] register batch failed', e)
+    return 0
+  }
+}
+
+/**
+ * 让服务端立即给「当前登录用户」下发一条测试订阅消息（验证推送链路是否通畅）。
+ * 会消耗一次订阅消息额度，需先完成授权。
+ * @returns 微信返回的 errcode（0 表示成功）与 errmsg
+ */
+export async function sendTestPush(): Promise<{ ok: boolean; errcode: number; errmsg: string }> {
+  try {
+    const token = getToken()
+    const res = await Network.request({
+      url: '/api/reminder/test-push',
+      method: 'POST',
+      header: token ? { Authorization: 'Bearer ' + token } : {},
+      data: {},
+    })
+    const body = res?.data as { success?: boolean; errcode?: number; errmsg?: string } | undefined
+    const code = body && typeof body.errcode === 'number' ? body.errcode : -1
+    return {
+      ok: !!body && body.success === true,
+      errcode: code,
+      errmsg: (body && body.errmsg) || '',
+    }
+  } catch (e) {
+    console.warn('[Reminder] test push failed', e)
+    return { ok: false, errcode: -1, errmsg: '请求服务端失败' }
+  }
+}
+
+/** 测试推送结果的提示文案 */
+export function testPushMessage(res: { ok: boolean; errcode: number; errmsg: string }): string {
+  if (res.ok) return '测试通知已发送，请查看微信服务通知'
+  if (res.errcode === 43101) return '未授权或额度已用完，请重新授权'
+  if (res.errcode < 0) return '连不上服务器，请确认后端已启动'
+  return '测试通知未发出：' + (res.errmsg || '推送失败')
 }
 
 /**
