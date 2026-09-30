@@ -99,6 +99,18 @@ export class ReminderController {
     return { success: res.errcode === 0, errcode: res.errcode, errmsg: res.errmsg };
   }
 
+  /**
+   * 当前登录用户的推送链路状态（限流：每 IP 每分钟 30 次）。
+   * 用于小程序提醒页顶部「服务通知监控」实时展示能否收到通知。
+   */
+  @Get('status')
+  @UseGuards(new RateLimitGuard(30, 60 * 1000))
+  async status(@Req() req: Request) {
+    const openid = requireOpenid(req);
+    const data = await this.reminderService.status(openid);
+    return { success: true, data };
+  }
+
   /** 管理：查询提醒列表 */
   @Get('list')
   @UseGuards(AdminGuard)

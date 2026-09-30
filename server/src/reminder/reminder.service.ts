@@ -116,6 +116,20 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
     return this.repo.list(limit);
   }
 
+  /**
+   * 当前用户的推送链路状态（供小程序「服务通知监控」实时展示）：
+   * 服务端凭证是否就绪、已登记待发送条数、下一条推送时间、最近一次失败原因。
+   */
+  async status(openid: string) {
+    const stats = await this.repo.statsByOpenid(openid);
+    return {
+      wxReady: WX_READY,
+      hasTemplate: !!WX_CONFIG.templateId,
+      serverTime: Date.now(),
+      ...stats,
+    };
+  }
+
   /** 清空待发送提醒（管理用） */
   async clear() {
     const cleared = await this.repo.clearPending();

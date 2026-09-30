@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
 import { toast } from '@/components/ui/toast'
 import { useSubscriptionStore } from '@/stores/subscription'
 import { seedDemoData } from '@/utils/subscription'
@@ -148,21 +147,6 @@ const SettingsPage = () => {
               </Picker>
             </View>
 
-            <Separator className="bg-slate-100 mb-4" />
-
-            <View>
-              <Text className="block text-sm text-slate-600 mb-2">大额阈值（元）</Text>
-              <View className="bg-slate-100 rounded-xl px-4 py-3 flex flex-row items-center gap-3">
-                <Input
-                  type="number"
-                  className="flex-1 bg-transparent border-0"
-                  placeholder="100"
-                  value={String(settings.largeAmount)}
-                  onInput={(e) => updateSettings({ largeAmount: Number(e.detail.value) || 0 })}
-                />
-                <Text className="block text-xs text-slate-500">超过该金额将单独提醒</Text>
-              </View>
-            </View>
           </View>
         </View>
 

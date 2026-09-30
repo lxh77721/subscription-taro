@@ -191,6 +191,59 @@ export class ReminderRepository {
     return (data || []).map((r) => this.mapRow(r as Record<string, unknown>));
   }
 
+  /**
+   * 按 openid 统计提醒状态（供前端「服务通知监控」展示）：
+   * 待发送/已发送/失败条数、下一条待发送时间、最近一次失败原因。
+   */
+  async statsByOpenid(openid: string): Promise<{
+    pending: number;
+    sent: number;
+    failed: number;
+    nextRemindAt: string | null;
+    lastError: string | null;
+  }> {
+    type Row = { status: string; remindAt: string; lastError: string | null };
+    let rows: Row[] = [];
+    const db = this.db;
+    if (!db) {
+      rows = [...this.memory.values()]
+        .filter((r) => r.openid === openid)
+        .map((r) => ({ status: r.status, remindAt: r.remindAt, lastError: r.lastError }));
+    } else {
+      const { data, error } = await db
+        .from(TABLE)
+        .select('status, remind_at, last_error')
+        .eq('openid', openid)
+        .limit(500);
+      if (error) throw new Error(`统计提醒失败: ${error.message}`);
+      rows = (data || []).map((r) => ({
+        status: String((r as Record<string, unknown>).status),
+        remindAt: String((r as Record<string, unknown>).remind_at),
+        lastError: (r as Record<string, unknown>).last_error != null
+          ? String((r as Record<string, unknown>).last_error)
+          : null,
+      }));
+    }
+
+    let pending = 0;
+    let sent = 0;
+    let failed = 0;
+    let nextRemindAt: string | null = null;
+    let lastError: string | null = null;
+    for (const r of rows) {
+      if (r.status === 'pending') {
+        pending += 1;
+        if (!nextRemindAt || r.remindAt < nextRemindAt) nextRemindAt = r.remindAt;
+      } else if (r.status === 'sent') {
+        sent += 1;
+      } else if (r.status === 'failed') {
+        failed += 1;
+        if (r.lastError) lastError = r.lastError;
+      }
+    }
+    return { pending, sent, failed, nextRemindAt, lastError };
+  }
+
   /** 清空待发送提醒（管理用） */
   async clearPending(): Promise<number> {
     const db = this.db;

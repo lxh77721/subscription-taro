@@ -89,6 +89,42 @@ export async function sendTestPush(): Promise<{ ok: boolean; errcode: number; er
   }
 }
 
+/** 服务端推送链路状态（用于提醒页顶部监控） */
+export interface ReminderStatus {
+  /** 服务端是否已配置微信凭证与模板 */
+  wxReady: boolean
+  hasTemplate: boolean
+  /** 待发送条数 */
+  pending: number
+  /** 已成功推送条数 */
+  sent: number
+  /** 发送失败条数 */
+  failed: number
+  /** 下一条待发送时间（ISO 字符串） */
+  nextRemindAt: string | null
+  /** 最近一次失败原因 */
+  lastError: string | null
+  /** 服务端当前时间戳（用于判断时钟与接口连通性） */
+  serverTime: number
+}
+
+/** 拉取当前用户的推送链路状态；失败返回 null（表示连不上服务端或服务端异常） */
+export async function fetchReminderStatus(): Promise<ReminderStatus | null> {
+  try {
+    const token = getToken()
+    const res = await Network.request({
+      url: '/api/reminder/status',
+      method: 'GET',
+      header: token ? { Authorization: 'Bearer ' + token } : {},
+    })
+    const body = res?.data as { success?: boolean; data?: ReminderStatus } | undefined
+    return body?.success ? (body.data ?? null) : null
+  } catch (e) {
+    console.warn('[Reminder] fetch status failed', e)
+    return null
+  }
+}
+
 /** 测试推送结果的提示文案 */
 export function testPushMessage(res: { ok: boolean; errcode: number; errmsg: string }): string {
   if (res.ok) return '测试通知已发送，请查看微信服务通知'

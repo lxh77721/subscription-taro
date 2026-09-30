@@ -22,12 +22,7 @@ export interface Settings {
   /** 月度预算（0 表示不设预算） */
   monthlyBudget: number
   /** 提醒规则 */
-  notifyBefore: boolean // 扣费前提醒
-  notifyLarge: boolean // 大额支出提醒
-  notifyPrice: boolean // 涨价提醒
-  notifyMonthly: boolean // 月度账单报告
-  /** 大额阈值 */
-  largeAmount: number
+  notifyBefore: boolean // 扣费前提醒（默认提前 3 天）
   /** 提醒时间 HH:mm */
   remindTime: string
   /** 免打扰时段（22:00 - 08:00） */
@@ -87,10 +82,6 @@ export const DEFAULT_SETTINGS: Settings = {
   homeSort: 'date',
   monthlyBudget: 1500,
   notifyBefore: true,
-  notifyLarge: true,
-  notifyPrice: false,
-  notifyMonthly: true,
-  largeAmount: 100,
   remindTime: '09:00',
   quietHours: true,
   customCategories: [],
