@@ -22,7 +22,6 @@ import { useAuthStore } from '@/stores/auth'
 import { allCategories, formatMoney, upcoming, yearCost } from '@/utils/subscription'
 import { persistAvatar } from '@/utils/profile'
 import { ensureLogin, pullFromCloud, pushToCloud, pushUserState } from '@/utils/sync'
-import { bindPhone } from '@/utils/api'
 import {
   type ExportRange,
   billFileName,
@@ -68,9 +67,9 @@ const ProfilePage = () => {
   const [logging, setLogging] = useState(false)
   /** 是否展开「使用微信头像/昵称」编辑（默认不展开，登录无需任何输入） */
   const [editingProfile, setEditingProfile] = useState(false)
-  /** 登录弹层：wx 身份自动获取 → 用户一键验证手机号 */
+  /** 登录弹层：只用 wx.login 换取微信身份，不索取手机号与头像昵称 */
   const [loginOpen, setLoginOpen] = useState(false)
-  const [loginStep, setLoginStep] = useState<'wx' | 'phone' | 'fail'>('wx')
+  const [loginStep, setLoginStep] = useState<'wx' | 'ready' | 'fail'>('wx')
 
   useDidShow(() => {
     refresh()
@@ -182,33 +181,23 @@ const ProfilePage = () => {
     </View>
   )
 
-  /** 打开登录弹层：先静默完成 wx.login，再引导一键验证手机号 */
+  /** 打开登录弹层：静默完成 wx.login（无需任何授权弹窗） */
   const login = async () => {
     setLoginOpen(true)
     setLoginStep('wx')
     const ok = await ensureLogin()
-    setLoginStep(ok ? 'phone' : 'fail')
+    setLoginStep(ok ? 'ready' : 'fail')
   }
 
-  /** 手机号快速验证：code → 服务端换取手机号 → 登录完成 */
-  const submitPhone = async (code?: string) => {
-    if (!code) {
-      toast.warning('未获取到手机号授权')
-      return
-    }
+  /** 微信一键登录：wx.login 的 code → 服务端换 openid，不索取手机号与头像昵称 */
+  const submitLogin = async () => {
     setLogging(true)
-    if (!(await ensureLogin())) {
-      setLogging(false)
+    const ok = await ensureLogin()
+    setLogging(false)
+    if (!ok) {
       toast.warning('登录失败，请检查网络或服务端配置')
       return
     }
-    const got = await bindPhone(code)
-    setLogging(false)
-    if (!got) {
-      toast.warning('手机号验证失败：需企业主体小程序并开通该组件')
-      return
-    }
-    updateProfile({ phone: got })
     setLoginOpen(false)
     toast.success('登录成功')
     void pushUserState()
@@ -360,21 +349,17 @@ const ProfilePage = () => {
           </DialogHeader>
           <View style={{ padding: `0 ${rpx(16)} ${rpx(16)}` }}>
             <Text className="block or-desc" style={{ marginBottom: rpx(10) }}>
-              1. 微信身份：{loginStep === 'wx' ? '获取中' : loginStep === 'phone' ? '已获取' : '获取失败'}
-            </Text>
-            <Text className="block form-label" style={{ marginBottom: rpx(8) }}>
-              2. 一键验证手机号
+              微信身份：{loginStep === 'wx' ? '获取中' : loginStep === 'ready' ? '已获取' : '获取失败'}
             </Text>
             <Button
               className="btn btn-primary btn-block"
-              openType="getPhoneNumber"
-              disabled={loginStep !== 'phone' || logging}
-              onGetPhoneNumber={(e) => void submitPhone(e?.detail?.code)}
+              disabled={logging}
+              onClick={() => void submitLogin()}
             >
-              {logging ? '登录中' : '微信手机号一键登录'}
+              {logging ? '登录中' : '微信一键登录'}
             </Button>
             <Text className="block or-desc" style={{ marginTop: rpx(8), lineHeight: rpx(16) }}>
-              点上方按钮后，微信会弹出「绑定手机号」，点允许即完成登录。手机号仅用于识别账号，展示时脱敏。
+              个人主体小程序只能读到微信身份标识（openid），拿不到头像和昵称，登录后会自动为你生成昵称与头像；订阅与设置仍会按账号存到云端。
             </Text>
           </View>
         </DialogContent>
