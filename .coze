@@ -1,10 +1,18 @@
 [project]
+sub_id = "e632ffe7"
+name = "coze-mini-program"
 entrypoint = "server.js"
 requires = [ "nodejs-24" ]
 project_type = "miniprogram"
 template = "taro"
 version = "0.1.9"
 appliedPatches = [ ]
+
+[preview]
+preview_enable = "enabled"
+
+[subprojects]
+path = ["."]
 
 [dev]
 build = [ "bash", ".cozeproj/scripts/dev_build.sh" ]
@@ -49,3 +57,9 @@ validate_win = [
 build = [ "bash", ".cozeproj/scripts/deploy_build.sh" ]
 run = [ "bash", ".cozeproj/scripts/deploy_run.sh" ]
 deps = [ "git", "rsync" ]
+
+[deploy.profile]
+kind = "miniprogram"
+
+[deploy.backend]
+enabled = true
