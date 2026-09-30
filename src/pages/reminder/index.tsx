@@ -11,6 +11,7 @@ import { getSubscribeSetting, openSubscribeSetting, requestSubscribeReminder } f
 import type { SubscribeSetting } from '@/utils/wxmsg'
 import { getSubscribeTemplateId } from '@/utils/ad.js'
 import {
+  computeRemindAt,
   fetchReminderStatus,
   registerReminders,
   sendTestPush,
@@ -162,7 +163,7 @@ const ReminderPage = () => {
         if (!dueDate) return null
         return {
           subscriptionId: s.id,
-          remindAt: new Date(`${dueDate}T00:00:00`).getTime() - s.remindDays * 86400000,
+          remindAt: computeRemindAt(dueDate, s.remindDays, settings),
           dueDate,
           name: s.name.slice(0, 20),
           amount: String(s.amount),

@@ -10,7 +10,7 @@ import { toast } from '@/components/ui/toast'
 import { AppIcon } from '@/components/app-icon'
 import { useSubscriptionStore } from '@/stores/subscription'
 import { requestSubscribeReminder } from '@/utils/wxmsg'
-import { registerReminder } from '@/utils/reminder'
+import { computeRemindAt, registerReminder } from '@/utils/reminder'
 import {
   type Category,
   type CustomUnit,
@@ -185,7 +185,12 @@ const EditPage = () => {
           const { code } = await Taro.login()
           const saved = useSubscriptionStore.getState().list.find((s) => s.id === savedId)
           const dueDate = saved?.endDate || (saved ? nextChargeDate(saved) : null) || todayStr()
-          const remindAt = new Date(`${dueDate}T00:00:00`).getTime() - form.remindDays * 86400000
+          // 推送时刻 = 扣费日前 N 天的提醒时间（默认 09:00），受免打扰时段约束
+          const remindAt = computeRemindAt(
+            dueDate,
+            form.remindDays,
+            useSubscriptionStore.getState().settings,
+          )
           await registerReminder({
             code,
             subscriptionId: savedId,

@@ -30,6 +30,28 @@ export async function ensureOpenid(): Promise<string> {
   }
 }
 
+/**
+ * 计算实际推送时刻：扣费日前 N 天的「提醒时间」（设置页的 HH:mm）。
+ * 开启免打扰（22:00 - 08:00）时，落在该时段内的时间顺延到 08:00。
+ */
+export function computeRemindAt(
+  dueDate: string,
+  remindDays: number,
+  settings: { remindTime?: string; quietHours?: boolean },
+): number {
+  const [h, m] = (settings?.remindTime || '09:00').split(':').map((x) => Number(x))
+  let hh = Number.isFinite(h) ? h : 9
+  let mm = Number.isFinite(m) ? m : 0
+  if (settings?.quietHours && (hh >= 22 || hh < 8)) {
+    hh = 8
+    mm = 0
+  }
+  const d = new Date(`${dueDate}T00:00:00`)
+  d.setDate(d.getDate() - remindDays)
+  d.setHours(hh, mm, 0, 0)
+  return d.getTime()
+}
+
 /** 单条提醒登记参数（不含 openid / code） */
 export interface ReminderItem {
   subscriptionId: string
