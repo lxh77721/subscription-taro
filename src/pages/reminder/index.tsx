@@ -331,7 +331,7 @@ const ReminderPage = () => {
         </View>
       ) : (
         soon7.map((x) => {
-          const rd = x.item.remindDays ?? DEFAULT_REMIND_DAYS
+          const rd = x.item.remindDays ?? 0
           const remindIn = x.days - rd
           const remindText =
             rd === 0 ? '未开启提醒' : remindIn <= 0 ? '今天提醒' : `${remindIn} 天后提醒`
