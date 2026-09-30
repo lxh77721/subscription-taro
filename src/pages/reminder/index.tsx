@@ -22,9 +22,6 @@ import { ensureLogin } from '@/utils/sync'
 import { formatMoney, nextChargeDate, presetIconUrl, prettyDate, upcoming } from '@/utils/subscription'
 import { rpx } from '@/utils/rpx'
 
-/** 默认提前提醒天数：到期前 3 天 */
-const DEFAULT_REMIND_DAYS = 3
-
 /** 监控结果 */
 interface Monitor {
   level: 'ok' | 'warn' | 'bad' | 'loading'
@@ -156,6 +153,12 @@ const ReminderPage = () => {
       return
     }
     updateSettings({ notifyAuthorized: true, notifyAuthorizedAt: Date.now() })
+    // 总开关关闭时不登记：已登记的提醒仍会照常发送，只是不再新增
+    if (!settings.notifyBefore) {
+      void loadMonitor()
+      toast.info('扣费前提醒已关闭，本次未登记提醒')
+      return
+    }
     const items = list
       .filter((s) => s.status === 'active' && s.remindDays > 0)
       .map((s) => {
@@ -187,8 +190,22 @@ const ReminderPage = () => {
     }
   }
 
+  // 提醒天数由每条订阅自己决定（remindDays），不存在统一的 3 天规则
+  const usedDays = [
+    ...new Set(
+      list.filter((s) => s.status === 'active' && s.remindDays > 0).map((s) => s.remindDays),
+    ),
+  ].sort((a, b) => a - b)
+  const daysText = usedDays.length
+    ? `按每条订阅各自设定：提前 ${usedDays.join('/')} 天 · 早上 ${settings.remindTime}`
+    : `没有订阅开启提醒 · 早上 ${settings.remindTime}`
+
   const rules: { key: 'notifyBefore' | 'quietHours'; title: string; desc: string }[] = [
-    { key: 'notifyBefore', title: '扣费前提醒', desc: `到期前 ${DEFAULT_REMIND_DAYS} 天 · 早上 ${settings.remindTime}` },
+    {
+      key: 'notifyBefore',
+      title: '扣费前提醒',
+      desc: settings.notifyBefore ? daysText : '已关闭，新增与重新登记不会再发提醒',
+    },
     { key: 'quietHours', title: '免打扰时段', desc: '22:00 - 08:00 不推送通知' },
   ]
 
@@ -265,7 +282,7 @@ const ReminderPage = () => {
           微信服务通知
         </Text>
         <Text className="block" style={{ fontSize: rpx(11.5), color: '#9CA3AF', lineHeight: rpx(18) }}>
-          授权后，到期前 {DEFAULT_REMIND_DAYS} 天会通过微信「服务通知」推送。微信订阅消息为一次性授权，授权时勾选「总是保持以上选择」可长期接收。
+          授权后，会在每条订阅设定的提前天数（如提前 1/3/7 天）通过微信「服务通知」推送。微信订阅消息为一次性授权，授权时勾选「总是保持以上选择」可长期接收。
         </Text>
         <Button
           className="btn btn-primary btn-block"
@@ -380,7 +397,8 @@ const ReminderPage = () => {
       </Button>
 
       <Text className="block" style={{ fontSize: rpx(10.5), color: '#C4C4CC', textAlign: 'center', marginTop: rpx(8) }}>
-        {remindCount} 个订阅已开启到期提醒 · 默认提前 {DEFAULT_REMIND_DAYS} 天
+        {remindCount} 个订阅已开启扣费提醒
+        {usedDays.length ? ` · 提前 ${usedDays.join('/')} 天` : ''}
       </Text>
     </View>
   )

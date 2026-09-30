@@ -178,7 +178,13 @@ const EditPage = () => {
     }
 
     // 微信订阅消息：用户授权后注册到期提醒（openid 由后端用 code 换取，到点由服务端推送）
-    if (form.remindDays > 0 && form.status === 'active' && Taro.getEnv() === Taro.ENV_TYPE.WEAPP) {
+    // 提醒页的「扣费前提醒」总开关关闭时不登记
+    if (
+      form.remindDays > 0 &&
+      form.status === 'active' &&
+      useSubscriptionStore.getState().settings.notifyBefore &&
+      Taro.getEnv() === Taro.ENV_TYPE.WEAPP
+    ) {
       const r = await requestSubscribeReminder()
       if (r.ok) {
         try {
