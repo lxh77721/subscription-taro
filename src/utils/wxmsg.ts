@@ -13,17 +13,17 @@ export interface SubscribeResult {
 }
 
 /** 订阅消息设置：总开关、被记住的选择、是否开发者工具 */
-interface SubscribeSetting {
+export interface SubscribeSetting {
   devtools: boolean
   mainSwitch?: boolean
   remembered?: string
 }
 
 /**
- * 读取订阅消息设置（仅用于失败后诊断，不影响授权弹窗）：
+ * 读取订阅消息设置（不影响授权弹窗）：
  * mainSwitch=false 表示总开关被关；remembered 是勾选「总是保持以上选择」后记住的结果。
  */
-function readSubscribeSetting(tmplId: string): Promise<SubscribeSetting> {
+export function getSubscribeSetting(tmplId: string): Promise<SubscribeSetting> {
   return new Promise((resolve) => {
     let devtools = false
     try {
@@ -50,6 +50,25 @@ function readSubscribeSetting(tmplId: string): Promise<SubscribeSetting> {
         resolve({ devtools })
       })
   })
+}
+
+/**
+ * 打开小程序设置页，让用户在里面改订阅消息授权（无需手动点右上角三点）。
+ * 用户点过「总是保持以上选择」后微信不再弹授权窗，只能在这里改回。
+ * @returns 用户从设置页返回后的最新订阅消息状态
+ */
+export async function openSubscribeSetting(tmplId: string): Promise<SubscribeSetting> {
+  await new Promise<void>((resolve) => {
+    const api = (Taro as unknown as { openSetting?: (o: unknown) => Promise<unknown> }).openSetting
+    if (typeof api !== 'function') {
+      resolve()
+      return
+    }
+    api({ withSubscriptions: true })
+      .then(() => resolve())
+      .catch(() => resolve())
+  })
+  return getSubscribeSetting(tmplId)
 }
 
 /**
@@ -95,7 +114,7 @@ export function requestSubscribeReminder(): Promise<SubscribeResult> {
           return
         }
         // 被拒绝：读设置定位「总开关关闭 / 之前拒绝并记住 / 开发者工具不弹窗 / 点了取消」
-        const s = await readSubscribeSetting(tmplId)
+        const s = await getSubscribeSetting(tmplId)
         console.log('[wxmsg] 订阅消息设置', s)
         if (s.mainSwitch === false) {
           resolve({ ok: false, reason: '订阅消息总开关已关闭，请到小程序「设置」开启' })

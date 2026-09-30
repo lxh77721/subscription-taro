@@ -7,7 +7,9 @@ import { Switch } from '@/components/ui/switch'
 import { toast } from '@/components/ui/toast'
 import { AppIcon } from '@/components/app-icon'
 import { useSubscriptionStore } from '@/stores/subscription'
-import { requestSubscribeReminder } from '@/utils/wxmsg'
+import { getSubscribeSetting, openSubscribeSetting, requestSubscribeReminder } from '@/utils/wxmsg'
+import type { SubscribeSetting } from '@/utils/wxmsg'
+import { getSubscribeTemplateId } from '@/utils/ad.js'
 import { registerReminders, sendTestPush, testPushMessage } from '@/utils/reminder'
 import { formatMoney, nextChargeDate, presetIconUrl, prettyDate, upcoming } from '@/utils/subscription'
 import { rpx } from '@/utils/rpx'
@@ -18,8 +20,15 @@ const ReminderPage = () => {
   const refresh = useSubscriptionStore((s) => s.refresh)
   const updateSettings = useSubscriptionStore((s) => s.updateSettings)
 
+  const [testing, setTesting] = useState(false)
+  /** 微信订阅消息授权状态：总开关是否打开、是否被「总是保持以上选择」记住 */
+  const [authState, setAuthState] = useState<SubscribeSetting | null>(null)
+
   useDidShow(() => {
     refresh()
+    if (Taro.getEnv() === Taro.ENV_TYPE.WEAPP) {
+      void getSubscribeSetting(getSubscribeTemplateId()).then(setAuthState)
+    }
   })
 
   const soon7 = upcoming(list, 7)
@@ -27,7 +36,20 @@ const ReminderPage = () => {
   const total30 = soon30.reduce((sum, x) => sum + x.item.amount, 0)
   const notifyOn = settings.notifyAuthorized
   const remindCount = list.filter((s) => s.status === 'active' && s.remindDays > 0).length
-  const [testing, setTesting] = useState(false)
+  /** 是否需要先去设置页改授权（总开关关闭，或之前拒绝并被记住 → 微信不再弹窗） */
+  const needSetting = authState?.mainSwitch === false || authState?.remembered === 'reject'
+
+  /** 打开微信设置页改订阅消息授权，返回后刷新状态 */
+  const openNotifySetting = async () => {
+    const s = await openSubscribeSetting(getSubscribeTemplateId())
+    setAuthState(s)
+    if (s.mainSwitch === false || s.remembered === 'reject') {
+      toast.info('还没开启，请在设置里打开「订阅服务到期提醒」')
+      return
+    }
+    toast.success('已开启，请点上方按钮完成授权')
+  }
+
   /** 立即下发一条测试消息 */
   const testPush = () => {
     if (Taro.getEnv() !== Taro.ENV_TYPE.WEAPP) {
@@ -122,9 +144,9 @@ const ReminderPage = () => {
         <Button
           className="btn btn-primary btn-block"
           style={{ marginTop: rpx(12) }}
-          onClick={() => void enableNotify()}
+          onClick={needSetting ? () => void openNotifySetting() : () => void enableNotify()}
         >
-          {notifyOn ? '重新授权并登记提醒' : '开启微信服务通知'}
+          {needSetting ? '去设置开启服务通知' : notifyOn ? '重新授权并登记提醒' : '开启微信服务通知'}
         </Button>
         <Button
           className="btn btn-block btn-ghost"
@@ -134,8 +156,15 @@ const ReminderPage = () => {
         >
           {testing ? '发送中' : '发一条测试通知'}
         </Button>
-        <Text className="block" style={{ fontSize: rpx(10.5), color: '#9CA3AF', lineHeight: rpx(16), marginTop: rpx(8) }}>
-          若点授权后没弹窗就提示被拒绝：说明你之前拒绝过并勾选了「总是保持以上选择」，请到小程序右上角「设置 → 订阅消息」把它改回允许，再回来重新授权。开发者工具不会弹授权窗，请用真机预览测试。
+        <Text
+          className="block"
+          style={{ fontSize: rpx(11), color: '#2563EB', marginTop: rpx(10) }}
+          onClick={() => void openNotifySetting()}
+        >
+          管理微信授权设置
+        </Text>
+        <Text className="block" style={{ fontSize: rpx(10.5), color: '#9CA3AF', lineHeight: rpx(16), marginTop: rpx(6) }}>
+          微信规定：勾了「总是保持以上选择」后就不会再弹授权窗，之后每次点上方按钮都会静默通过并补一条额度；若当时选的是拒绝，需要点「管理微信授权设置」改回允许。开发者工具不弹授权窗，请用真机预览测试。
         </Text>
       </View>
 
