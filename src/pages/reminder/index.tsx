@@ -105,9 +105,11 @@ const ReminderPage = () => {
           ? { level: 'warn', label: '未授权', hint: '点下方按钮开启微信服务通知' }
           : !status.wxReady || !status.hasTemplate
             ? { level: 'bad', label: '服务端未配置', hint: '缺少微信凭证或订阅消息模板 ID' }
-            : status.failed > 0 && status.lastError
-              ? { level: 'warn', label: '推送异常', hint: status.lastError }
-              : { level: 'ok', label: '可正常接收', hint: '授权与服务端均正常' }
+            : !status.healthy
+              ? { level: 'warn', label: '推送异常', hint: status.lastError || '最近一次推送失败，可点「发一条测试通知」复测' }
+              : status.failed > 0
+                ? { level: 'ok', label: '可正常接收', hint: `最近一次已恢复（历史失败 ${status.failed} 条）` }
+                : { level: 'ok', label: '可正常接收', hint: '授权与服务端均正常' }
 
   const badgeStyle: Record<Monitor['level'], { background: string; color: string }> = {
     ok: { background: '#111111', color: '#ffffff' },
@@ -241,6 +243,12 @@ const ReminderPage = () => {
           <Text className="block or-desc">下次推送</Text>
           <Text className="block" style={{ fontSize: rpx(12), color: '#111111' }}>
             {status ? fmtDateTime(status.nextRemindAt) : '—'}
+          </Text>
+        </View>
+        <View className="monitor-row">
+          <Text className="block or-desc">最近送达</Text>
+          <Text className="block" style={{ fontSize: rpx(12), color: '#111111' }}>
+            {status ? (status.lastSentAt ? fmtDateTime(status.lastSentAt) : '暂无') : '—'}
           </Text>
         </View>
         <View className="monitor-row">

@@ -114,7 +114,7 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
   async sendTest(openid: string): Promise<{ errcode: number; errmsg: string }> {
     const due = new Date(Date.now() + 3 * 86400000);
     const dueDate = `${due.getFullYear()}-${`${due.getMonth() + 1}`.padStart(2, '0')}-${`${due.getDate()}`.padStart(2, '0')}`;
-    return this.wx.sendSubscribeMessage({
+    const res = await this.wx.sendSubscribeMessage({
       openid,
       templateId: WX_CONFIG.templateId,
       page: 'pages/index/index',
@@ -125,6 +125,15 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
         number5: { value: '3' },
       },
     });
+    // 测试成功即证明链路可用：记录探针，让监控的「最近送达时间」被刷新
+    if (res.errcode === 0) {
+      try {
+        await this.repo.upsertProbe(openid);
+      } catch (e) {
+        console.warn('[reminder] 记录自检探针失败:', (e as Error).message);
+      }
+    }
+    return res;
   }
 
   async list(limit = 100): Promise<ReminderRow[]> {
@@ -137,11 +146,17 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
    */
   async status(openid: string) {
     const stats = await this.repo.statsByOpenid(openid);
+    // 链路是否可用：只看「最近一次」结果。历史失败不该一直告警 ——
+    // 只要最近一次送达时间晚于最近一次失败时间（或从未失败过），就认为当前能收到。
+    const healthy =
+      stats.failed === 0 ||
+      (!!stats.lastSentAt && !!stats.lastFailedAt && stats.lastSentAt >= stats.lastFailedAt);
     return {
       wxReady: WX_READY,
       hasTemplate: !!WX_CONFIG.templateId,
       serverTime: Date.now(),
       ...stats,
+      healthy,
     };
   }
 

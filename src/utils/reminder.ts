@@ -104,6 +104,12 @@ export interface ReminderStatus {
   nextRemindAt: string | null
   /** 最近一次失败原因 */
   lastError: string | null
+  /** 最近一次成功送达时间（含自检探针） */
+  lastSentAt: string | null
+  /** 最近一次失败时间（用计划发送时间近似） */
+  lastFailedAt: string | null
+  /** 最近一次推送是否成功（历史失败不算异常） */
+  healthy: boolean
   /** 服务端当前时间戳（用于判断时钟与接口连通性） */
   serverTime: number
 }

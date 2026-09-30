@@ -6,6 +6,11 @@ import type { ReminderRow } from '../storage/database/shared/schema';
 
 const TABLE = 'reminders';
 const PENDING = 'pending';
+/**
+ * 链路自检探针：测试推送成功时写入（每个用户只保留一条，重复测试会覆盖）。
+ * 用于监控判断「最近一次推送是否成功」，不计入真实提醒的送达条数。
+ */
+const PROBE_ID = '__probe__';
 /** 未配置数据库时的本地落盘文件（避免重启后待发提醒丢失） */
 const MEM_FILE = path.resolve(process.cwd(), '.data/reminders.json');
 
@@ -225,28 +230,45 @@ export class ReminderRepository {
     failed: number;
     nextRemindAt: string | null;
     lastError: string | null;
+    lastSentAt: string | null;
+    lastFailedAt: string | null;
   }> {
-    type Row = { status: string; remindAt: string; lastError: string | null };
+    type Row = {
+      status: string;
+      remindAt: string;
+      lastError: string | null;
+      sentAt: string | null;
+      subscriptionId: string;
+    };
     let rows: Row[] = [];
     const db = this.db;
     if (!db) {
       rows = [...this.memory.values()]
         .filter((r) => r.openid === openid)
-        .map((r) => ({ status: r.status, remindAt: r.remindAt, lastError: r.lastError }));
+        .map((r) => ({
+          status: r.status,
+          remindAt: r.remindAt,
+          lastError: r.lastError,
+          sentAt: r.sentAt,
+          subscriptionId: r.subscriptionId,
+        }));
     } else {
       const { data, error } = await db
         .from(TABLE)
-        .select('status, remind_at, last_error')
+        .select('status, remind_at, last_error, sent_at, subscription_id')
         .eq('openid', openid)
         .limit(500);
       if (error) throw new Error(`统计提醒失败: ${error.message}`);
-      rows = (data || []).map((r) => ({
-        status: String((r as Record<string, unknown>).status),
-        remindAt: String((r as Record<string, unknown>).remind_at),
-        lastError: (r as Record<string, unknown>).last_error != null
-          ? String((r as Record<string, unknown>).last_error)
-          : null,
-      }));
+      rows = (data || []).map((r) => {
+        const raw = r as Record<string, unknown>;
+        return {
+          status: String(raw.status),
+          remindAt: String(raw.remind_at),
+          lastError: raw.last_error != null ? String(raw.last_error) : null,
+          sentAt: raw.sent_at != null ? String(raw.sent_at) : null,
+          subscriptionId: String(raw.subscription_id),
+        };
+      });
     }
 
     let pending = 0;
@@ -254,18 +276,95 @@ export class ReminderRepository {
     let failed = 0;
     let nextRemindAt: string | null = null;
     let lastError: string | null = null;
+    let lastSentAt: string | null = null;
+    let lastFailedAt: string | null = null;
     for (const r of rows) {
+      const probe = r.subscriptionId === PROBE_ID;
       if (r.status === 'pending') {
         pending += 1;
         if (!nextRemindAt || r.remindAt < nextRemindAt) nextRemindAt = r.remindAt;
       } else if (r.status === 'sent') {
-        sent += 1;
+        // 探针只用于刷新「最近送达时间」，不计入真实送达条数
+        if (!probe) sent += 1;
+        if (r.sentAt && (!lastSentAt || r.sentAt > lastSentAt)) lastSentAt = r.sentAt;
       } else if (r.status === 'failed') {
         failed += 1;
         if (r.lastError) lastError = r.lastError;
+        // 失败记录没有专门的失败时间，用计划发送时间近似
+        const at = r.sentAt || r.remindAt;
+        if (at && (!lastFailedAt || at > lastFailedAt)) lastFailedAt = at;
       }
     }
-    return { pending, sent, failed, nextRemindAt, lastError };
+    return { pending, sent, failed, nextRemindAt, lastError, lastSentAt, lastFailedAt };
+  }
+
+  /** 记录一次「测试推送成功」：每个用户只保留一条探针记录，重复测试覆盖更新 */
+  async upsertProbe(openid: string): Promise<void> {
+    const now = new Date().toISOString();
+    const dueDate = now.slice(0, 10);
+    const db = this.db;
+    if (!db) {
+      const existing = [...this.memory.values()].find(
+        (r) => r.openid === openid && r.subscriptionId === PROBE_ID,
+      );
+      if (existing) {
+        this.memory.set(existing.id, {
+          ...existing,
+          status: 'sent',
+          sentAt: now,
+          remindAt: now,
+          lastError: null,
+          retryCount: 0,
+        });
+      } else {
+        const row: ReminderRow = {
+          id: this.nextId(),
+          openid,
+          subscriptionId: PROBE_ID,
+          remindAt: now,
+          dueDate,
+          name: '链路自检',
+          amount: '0',
+          page: 'pages/index/index',
+          templateId: null,
+          status: 'sent',
+          retryCount: 0,
+          lastError: null,
+          createdAt: now,
+          sentAt: now,
+        };
+        this.memory.set(row.id, row);
+      }
+      this.saveMemory();
+      return;
+    }
+
+    const { data } = await db
+      .from(TABLE)
+      .select('id')
+      .eq('openid', openid)
+      .eq('subscription_id', PROBE_ID)
+      .maybeSingle();
+    const id = (data as { id?: string } | null)?.id;
+    if (id) {
+      await db
+        .from(TABLE)
+        .update({ status: 'sent', sent_at: now, remind_at: now, last_error: null, retry_count: 0 })
+        .eq('id', id);
+      return;
+    }
+    await db.from(TABLE).insert({
+      openid,
+      subscription_id: PROBE_ID,
+      remind_at: now,
+      due_date: dueDate,
+      name: '链路自检',
+      amount: '0',
+      page: 'pages/index/index',
+      status: 'sent',
+      retry_count: 0,
+      sent_at: now,
+    });
   }
 
   /** 清空待发送提醒（管理用） */
