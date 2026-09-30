@@ -26,3 +26,13 @@ CREATE INDEX IF NOT EXISTS subscriptions_openid_idx ON subscriptions (openid);
 
 -- 行级安全（如启用 RLS，按需放开服务端 service_role 访问）
 -- ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+
+-- 用户资料与偏好配置（按 openid 隔离）
+CREATE TABLE IF NOT EXISTS user_profiles (
+  openid      varchar(64) PRIMARY KEY,
+  nickname    varchar(40)  NOT NULL DEFAULT '',
+  avatar_url  varchar(500),
+  settings    jsonb,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);

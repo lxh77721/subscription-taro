@@ -25,6 +25,8 @@ export interface SubscriptionState {
   setStatus: (id: string, status: SubStatus) => void
   /** 更新设置 */
   updateSettings: (patch: Partial<Settings>) => void
+  /** 整体替换设置（云端恢复用） */
+  replaceSettings: (settings: Settings) => void
 }
 
 export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
@@ -66,6 +68,11 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
 
   updateSettings: (patch) => {
     const settings = { ...get().settings, ...patch }
+    saveSettings(settings)
+    set({ settings })
+  },
+
+  replaceSettings: (settings) => {
     saveSettings(settings)
     set({ settings })
   },

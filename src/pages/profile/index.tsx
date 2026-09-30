@@ -21,7 +21,7 @@ import { useSubscriptionStore } from '@/stores/subscription'
 import { useAuthStore } from '@/stores/auth'
 import { allCategories, formatMoney, upcoming, yearCost } from '@/utils/subscription'
 import { persistAvatar } from '@/utils/profile'
-import { pullFromCloud, pushToCloud } from '@/utils/sync'
+import { ensureLogin, pullFromCloud, pushToCloud, pushUserState } from '@/utils/sync'
 import {
   type ExportRange,
   billFileName,
@@ -63,9 +63,12 @@ const ProfilePage = () => {
   const [exportOpen, setExportOpen] = useState(false)
   const [range, setRange] = useState<ExportRange>('recent3')
   const [busy, setBusy] = useState(false)
+  const [logging, setLogging] = useState(false)
 
   useDidShow(() => {
     refresh()
+    // 进入「我的」即静默完成微信登录（无需任何输入），登录后自动补齐云端资料
+    void ensureLogin()
   })
 
   const yearly = yearCost(list)
@@ -172,11 +175,30 @@ const ProfilePage = () => {
     </View>
   )
 
+  /** 微信一键登录：code → 服务端换 openid，无需输入任何信息 */
+  const login = async () => {
+    setLogging(true)
+    const ok = await ensureLogin()
+    setLogging(false)
+    if (!ok) {
+      toast.warning('登录失败，请检查网络或服务端配置')
+      return
+    }
+    toast.success('已登录，订阅与设置会自动备份到云端')
+    void pushUserState()
+  }
+
+  /** 昵称/头像改动后同步到云端 */
+  const syncProfile = () => {
+    void pushUserState()
+  }
+
   const onPickAvatar = async (tempPath: string) => {
     if (!tempPath) return
     const saved = await persistAvatar(tempPath)
     updateProfile({ avatarUrl: saved })
     toast.success('头像已更新')
+    syncProfile()
   }
 
   const exportFile = async () => {
@@ -213,24 +235,39 @@ const ProfilePage = () => {
 
   return (
     <View className="page-pad min-h-full w-full bg-[#F4F4F6]">
-      {/* 用户信息（微信头像昵称填写能力） */}
+      {/* 用户信息：未登录 → 微信一键登录；已登录 → 微信头像昵称填写能力 */}
       <View className="profile-card">
-        <View style={{ display: 'flex', alignItems: 'center', gap: rpx(14) }}>
-          <AvatarPicker url={avatarUrl} initial={initial} onPick={(p) => void onPickAvatar(p)} />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Input
-              type="nickname"
-              className="pc-name border-0 bg-transparent h-auto px-0 py-0"
-              placeholder="点击填写昵称"
-              value={nickname}
-              maxlength={20}
-              onInput={(e) => updateProfile({ nickname: e.detail.value })}
-            />
-            <Text className="block pc-sub">
-              {openid ? '微信用户 · 数据已按账号隔离' : '未登录 · 数据仅存本机'} · 已管理 {list.length} 个订阅
-            </Text>
+        {openid ? (
+          <View style={{ display: 'flex', alignItems: 'center', gap: rpx(14) }}>
+            <AvatarPicker url={avatarUrl} initial={initial} onPick={(p) => void onPickAvatar(p)} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Input
+                type="nickname"
+                className="pc-name border-0 bg-transparent h-auto px-0 py-0"
+                placeholder="点击使用微信昵称"
+                value={nickname}
+                maxlength={20}
+                onInput={(e) => updateProfile({ nickname: e.detail.value })}
+                onBlur={() => void syncProfile()}
+              />
+              <Text className="block pc-sub">
+                微信用户 · 订阅与设置已存云端 · 已管理 {list.length} 个订阅
+              </Text>
+            </View>
           </View>
-        </View>
+        ) : (
+          <View>
+            <Text className="block" style={{ fontSize: rpx(13.5), fontWeight: '600', marginBottom: rpx(4) }}>
+              微信一键登录
+            </Text>
+            <Text className="block pc-sub" style={{ marginBottom: rpx(10), lineHeight: rpx(17) }}>
+              无需注册：授权后自动以微信身份登录，订阅、偏好设置与头像昵称都会存到云端，换设备可原样恢复。
+            </Text>
+            <Button className="btn btn-primary btn-block" disabled={logging} onClick={() => void login()}>
+              {logging ? '登录中' : '微信一键登录'}
+            </Button>
+          </View>
+        )}
 
         <View className="pc-stats">
           <View className="pc-stat">

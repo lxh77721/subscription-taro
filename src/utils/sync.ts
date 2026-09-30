@@ -1,7 +1,8 @@
 import Taro from '@tarojs/taro'
 import { useAuthStore } from '@/stores/auth'
 import { useSubscriptionStore } from '@/stores/subscription'
-import { fetchSubscriptions, syncSubscriptions } from './api'
+import type { Settings } from '@/utils/settings'
+import { fetchSubscriptions, fetchUserState, saveUserState, syncSubscriptions } from './api'
 import { requestSubscribeReminder } from './wxmsg'
 
 /**
@@ -9,19 +10,43 @@ import { requestSubscribeReminder } from './wxmsg'
  * 每个微信用户只会看到自己的订阅，互不干扰。
  */
 
-/** 确保已有登录态（没有就静默登录一次） */
+/** 确保已有登录态（没有就静默登录一次），登录成功后自动补齐云端资料 */
 export async function ensureLogin(): Promise<boolean> {
   const auth = useAuthStore.getState()
   if (auth.token) return true
-  return await auth.login()
+  const ok = await auth.login()
+  if (ok) await restoreCloudProfile()
+  return ok
 }
 
-/** 把本机订阅备份到云端（覆盖式同步） */
+/** 用云端资料补齐本机昵称/头像（本机已有则不覆盖） */
+async function restoreCloudProfile(): Promise<void> {
+  const state = await fetchUserState()
+  if (!state?.profile) return
+  const auth = useAuthStore.getState()
+  const patch: { nickname?: string; avatarUrl?: string } = {}
+  if (!auth.nickname && state.profile.nickname) patch.nickname = state.profile.nickname
+  if (!auth.avatarUrl && state.profile.avatarUrl) patch.avatarUrl = state.profile.avatarUrl
+  if (patch.nickname || patch.avatarUrl) auth.updateProfile(patch)
+}
+
+/** 把本机「资料 + 偏好设置」上传到云端 */
+export async function pushUserState(): Promise<boolean> {
+  if (!(await ensureLogin())) return false
+  const auth = useAuthStore.getState()
+  return await saveUserState({
+    profile: { nickname: auth.nickname, avatarUrl: auth.avatarUrl },
+    settings: useSubscriptionStore.getState().settings as unknown as Record<string, unknown>,
+  })
+}
+
+/** 把本机订阅备份到云端（覆盖式同步，连资料与设置一起） */
 export async function pushToCloud(): Promise<boolean> {
   if (!(await ensureLogin())) return false
   const ok = await syncSubscriptions(useSubscriptionStore.getState().list)
+  const okUser = await pushUserState()
   if (ok) useSubscriptionStore.getState().updateSettings({ lastSyncAt: Date.now() })
-  return ok
+  return ok && okUser
 }
 
 /**
@@ -30,7 +55,18 @@ export async function pushToCloud(): Promise<boolean> {
  */
 export async function pullFromCloud(): Promise<number> {
   if (!(await ensureLogin())) return -1
-  const list = await fetchSubscriptions()
+  const [list, state] = await Promise.all([fetchSubscriptions(), fetchUserState()])
+
+  if (state?.settings && Object.keys(state.settings).length) {
+    useSubscriptionStore.getState().replaceSettings(state.settings as unknown as Settings)
+  }
+  if (state?.profile) {
+    const patch: { nickname?: string; avatarUrl?: string } = {}
+    if (state.profile.nickname) patch.nickname = state.profile.nickname
+    if (state.profile.avatarUrl) patch.avatarUrl = state.profile.avatarUrl
+    if (patch.nickname || patch.avatarUrl) useAuthStore.getState().updateProfile(patch)
+  }
+
   if (!list) return -1
   useSubscriptionStore.getState().replaceAll(list)
   return list.length

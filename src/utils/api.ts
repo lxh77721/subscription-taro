@@ -71,6 +71,38 @@ export async function fetchSubscriptions(): Promise<Subscription[] | null> {
   }
 }
 
+/** 云端用户资料与设置 */
+export interface UserState {
+  profile: { nickname: string; avatarUrl: string | null }
+  settings: Record<string, unknown> | null
+  updatedAt: string
+}
+
+/** 读取云端资料与设置（换设备恢复用） */
+export async function fetchUserState(): Promise<UserState | null> {
+  try {
+    const res = await Network.request(withAuth({ url: '/api/user/state' }))
+    return unwrap<UserState>(res as { data?: unknown })
+  } catch (e) {
+    console.warn('[api] user state failed', e)
+    return null
+  }
+}
+
+/** 保存资料与设置到云端（资料/设置可只传其一） */
+export async function saveUserState(body: {
+  profile?: { nickname?: string; avatarUrl?: string }
+  settings?: Record<string, unknown>
+}): Promise<boolean> {
+  try {
+    const res = await Network.request(withAuth({ url: '/api/user/state', method: 'POST', data: body }))
+    return !!(res?.data as { success?: boolean })?.success
+  } catch (e) {
+    console.warn('[api] save user state failed', e)
+    return false
+  }
+}
+
 /** 拉取服务端计算的即将扣费列表 */
 export async function fetchUpcoming(
   days = 30,

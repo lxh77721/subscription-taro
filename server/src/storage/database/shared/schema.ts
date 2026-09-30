@@ -1,4 +1,4 @@
-import { pgTable, timestamp, varchar, integer, bigint, doublePrecision, index } from "drizzle-orm/pg-core"
+import { pgTable, timestamp, varchar, integer, bigint, doublePrecision, index, jsonb } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const healthCheck = pgTable("health_check", {
@@ -108,6 +108,27 @@ export interface ReminderRow {
 	lastError: string | null;
 	createdAt: string;
 	sentAt: string | null;
+}
+
+/** 用户资料与偏好配置（按 openid 隔离；settings 为 jsonb，存小程序设置） */
+export const userProfiles = pgTable("user_profiles", {
+	openid: varchar("openid", { length: 64 }).primaryKey(),
+	nickname: varchar("nickname", { length: 40 }).notNull().default(""),
+	/** 头像（微信头像填写能力得到的本地或远程地址） */
+	avatarUrl: varchar("avatar_url", { length: 500 }),
+	/** 小程序设置：预算 / 分类 / 支付方式 / 提醒偏好等 */
+	settings: jsonb("settings").$type<Record<string, unknown>>(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+});
+
+/** 用户资料行类型 */
+export interface UserProfileRow {
+	openid: string;
+	nickname: string;
+	avatarUrl: string | null;
+	settings: Record<string, unknown> | null;
+	updatedAt: string;
 }
 
 /** 插入提醒类型 */
