@@ -101,6 +101,30 @@ export class ReminderRepository {
     return data ? this.mapRow(data as Record<string, unknown>) : null;
   }
 
+  /**
+   * 查询同一 (openid, subscriptionId) 最近一条提醒（不限状态）。
+   * 用于判断「同一期账单是否已经发过」，避免重新登记导致重复推送。
+   */
+  async findLatest(openid: string, subscriptionId: string): Promise<ReminderRow | null> {
+    const db = this.db;
+    if (!db) {
+      const rows = [...this.memory.values()]
+        .filter((r) => r.openid === openid && r.subscriptionId === subscriptionId)
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      return rows[0] || null;
+    }
+    const { data, error } = await db
+      .from(TABLE)
+      .select('*')
+      .eq('openid', openid)
+      .eq('subscription_id', subscriptionId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(`查询提醒失败: ${error.message}`);
+    return data ? this.mapRow(data as Record<string, unknown>) : null;
+  }
+
   async insert(input: Omit<ReminderRow, 'id' | 'createdAt' | 'sentAt'>): Promise<ReminderRow> {
     const db = this.db;
     const nowIso = new Date().toISOString();

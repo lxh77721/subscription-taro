@@ -5,6 +5,10 @@ import { WX_CONFIG, WX_READY } from './wx.config';
 import { WxClient } from './wx.client';
 
 const MAX_RETRY = 3;
+/** 每轮最多处理多少条到期提醒（默认 100，可用环境变量 REMINDER_BATCH 调整） */
+const BATCH_SIZE = Math.max(1, Number(process.env.REMINDER_BATCH || 100));
+/** 发送并发上限（微信接口无官方 QPS 承诺，默认 5 路并发，可用 REMINDER_CONCURRENCY 调整） */
+const CONCURRENCY = Math.max(1, Number(process.env.REMINDER_CONCURRENCY || 5));
 
 export interface ReminderInput {
   subscriptionId: string;
@@ -68,6 +72,17 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
     if (existing) {
       await this.repo.update(existing.id, patch);
       return { ...existing, ...patch };
+    }
+
+    // 同一期（相同到期日）已经送达过就不再登记，避免用户重新授权 / 编辑订阅时重复推送；
+    // 之前发送失败（如额度不足）的记录则重置重试，用户补授权后可继续送达。
+    const last = await this.repo.findLatest(openid, input.subscriptionId);
+    if (last && last.dueDate === input.dueDate) {
+      if (last.status === 'sent') return last;
+      if (last.status === 'failed') {
+        await this.repo.update(last.id, { ...patch, status: 'pending', retryCount: 0 });
+        return { ...last, ...patch, status: 'pending', retryCount: 0 };
+      }
     }
 
     return this.repo.insert({
@@ -159,26 +174,37 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
     if (!WX_READY) return { sent: 0, failed: 0, skipped: true };
 
     const nowIso = new Date().toISOString();
-    const dueRows = await this.repo.listDue(nowIso, 100);
+    const dueRows = await this.repo.listDue(nowIso, BATCH_SIZE);
     let sent = 0;
     let failed = 0;
-    for (const row of dueRows) {
-      try {
-        await this.sendOne(row);
-        await this.repo.update(row.id, { status: 'sent', sentAt: new Date().toISOString() });
-        sent++;
-      } catch (err) {
-        failed++;
-        const nextRetry = (row.retryCount || 0) + 1;
-        const dead = nextRetry > MAX_RETRY;
-        console.error(`[reminder] send failed id=${row.id} retry=${nextRetry}`, (err as Error).message);
-        await this.repo.update(row.id, {
-          status: dead ? 'failed' : 'pending',
-          retryCount: nextRetry,
-          lastError: (err as Error).message.slice(0, 300),
-        });
+    // 固定并发度分批发送：既避免瞬时打满微信接口，也比串行快得多
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < dueRows.length) {
+        const row = dueRows[cursor++];
+        try {
+          await this.sendOne(row);
+          await this.repo.update(row.id, { status: 'sent', sentAt: new Date().toISOString() });
+          sent += 1;
+        } catch (err) {
+          failed += 1;
+          const msg = (err as Error).message;
+          const nextRetry = (row.retryCount || 0) + 1;
+          // 43101 = 用户未授权或订阅额度已用完，重试无意义（额度不会在几分钟内恢复），直接判死
+          const noQuota = msg.includes('43101');
+          const dead = noQuota || nextRetry > MAX_RETRY;
+          console.error(`[reminder] send failed id=${row.id} retry=${nextRetry}`, msg);
+          await this.repo
+            .update(row.id, {
+              status: dead ? 'failed' : 'pending',
+              retryCount: nextRetry,
+              lastError: msg.slice(0, 300),
+            })
+            .catch((e) => console.error('[reminder] update failed', (e as Error).message));
+        }
       }
-    }
+    };
+    await Promise.all(new Array(Math.min(CONCURRENCY, dueRows.length)).fill(0).map(worker));
     return { sent, failed, skipped: false };
   }
 
