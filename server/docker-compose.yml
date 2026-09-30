@@ -1,0 +1,12 @@
+services:
+  server:
+    build: .
+    container_name: subscription-server
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env
+    volumes:
+      # 未配置数据库时，提醒与用户资料落盘保留
+      - ./.data:/app/.data
