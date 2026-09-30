@@ -13,6 +13,8 @@ import { requestSubscribeReminder } from './wxmsg'
 /** 确保已有登录态（没有就静默登录一次），登录成功后自动补齐云端资料 */
 export async function ensureLogin(): Promise<boolean> {
   const auth = useAuthStore.getState()
+  // 用户主动退出后不再静默登录，必须重新点「微信一键登录」
+  if (auth.loggedOut) return false
   if (auth.token) {
     // 老账号没昵称时补一个（登录本身不需要用户做任何操作）
     if (!auth.nickname) await restoreCloudProfile()

@@ -8,6 +8,7 @@ import {
   Info,
   LayoutGrid,
   Lock,
+  LogOut,
   MessageCircle,
   Target,
   Trash2,
@@ -60,6 +61,8 @@ const ProfilePage = () => {
   const openid = useAuthStore((s) => s.openid)
   const phone = useAuthStore((s) => s.phone)
   const updateProfile = useAuthStore((s) => s.updateProfile)
+  const logout = useAuthStore((s) => s.logout)
+  const clearLogout = useAuthStore((s) => s.clearLogout)
 
   const [exportOpen, setExportOpen] = useState(false)
   const [range, setRange] = useState<ExportRange>('recent3')
@@ -70,6 +73,8 @@ const ProfilePage = () => {
   /** 登录弹层：只用 wx.login 换取微信身份，不索取手机号与头像昵称 */
   const [loginOpen, setLoginOpen] = useState(false)
   const [loginStep, setLoginStep] = useState<'wx' | 'ready' | 'fail'>('wx')
+  /** 退出登录确认弹层 */
+  const [logoutOpen, setLogoutOpen] = useState(false)
 
   useDidShow(() => {
     refresh()
@@ -88,6 +93,9 @@ const ProfilePage = () => {
 
   const ICO = '#111111'
   const go = (url: string) => Taro.navigateTo({ url })
+  /** 未设置昵称时按 openid 自动生成（微信不允许静默读取真实昵称） */
+  const displayName = nickname || (openid ? `微信用户${openid.slice(-4)}` : '未登录')
+  const initial = displayName.trim().slice(0, 1)
 
   const manageMenus: MenuItem[] = [
     {
@@ -167,6 +175,18 @@ const ProfilePage = () => {
   ]
 
   const otherMenus: MenuItem[] = [
+    {
+      icon: <LogOut size={rpx(16)} color={ICO} />,
+      title: '退出登录',
+      value: openid ? displayName : '当前未登录',
+      onClick: () => {
+        if (!openid) {
+          toast.info('当前未登录')
+          return
+        }
+        setLogoutOpen(true)
+      },
+    },
     { icon: <Lock size={rpx(16)} color={ICO} />, title: '隐私与安全', onClick: () => go('/pages/info/index?type=privacy') },
     { icon: <MessageCircle size={rpx(16)} color={ICO} />, title: '帮助与反馈', onClick: () => go('/pages/info/index?type=help') },
     { icon: <Info size={rpx(16)} color={ICO} />, title: '关于订阅管家', value: 'v1.0.0', onClick: () => go('/pages/info/index?type=about') },
@@ -183,6 +203,8 @@ const ProfilePage = () => {
 
   /** 打开登录弹层：静默完成 wx.login（无需任何授权弹窗） */
   const login = async () => {
+    // 退出登录后需用户主动点登录才会重新登录，这里先清掉退出标记
+    clearLogout()
     setLoginOpen(true)
     setLoginStep('wx')
     const ok = await ensureLogin()
@@ -201,6 +223,17 @@ const ProfilePage = () => {
     setLoginOpen(false)
     toast.success('登录成功')
     void pushUserState()
+  }
+
+  /**
+   * 退出登录：清除本地登录态，之后不会再被静默登录，需重新点「微信一键登录」。
+   * 云端数据仍在服务端，重新登录后可直接恢复；本机数据可保留或清空。
+   */
+  const confirmLogout = (clearLocal: boolean) => {
+    setLogoutOpen(false)
+    if (clearLocal) useSubscriptionStore.getState().replaceAll([])
+    logout()
+    toast.success(clearLocal ? '已退出，本机订阅数据已清空' : '已退出登录，本机数据已保留')
   }
 
   /** 昵称/头像改动后同步到云端 */
@@ -245,10 +278,6 @@ const ProfilePage = () => {
     if (ok) toast.success('表格内容已复制，可粘贴到 Excel')
     else toast.warning('复制失败，请稍后重试')
   }
-
-  /** 未设置昵称时按 openid 自动生成（微信不允许静默读取真实昵称） */
-  const displayName = nickname || (openid ? `微信用户${openid.slice(-4)}` : '未登录')
-  const initial = displayName.trim().slice(0, 1)
 
   return (
     <View className="page-pad min-h-full w-full bg-[#F4F4F6]">
@@ -361,6 +390,39 @@ const ProfilePage = () => {
             <Text className="block or-desc" style={{ marginTop: rpx(8), lineHeight: rpx(16) }}>
               个人主体小程序只能读到微信身份标识（openid），拿不到头像和昵称，登录后会自动为你生成昵称与头像；订阅与设置仍会按账号存到云端。
             </Text>
+          </View>
+        </DialogContent>
+      </Dialog>
+
+      {/* 退出登录确认 */}
+      <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <DialogContent style={{ borderRadius: rpx(20), background: '#fff' }}>
+          <DialogHeader style={{ padding: `${rpx(14)} ${rpx(16)} ${rpx(6)}` }}>
+            <DialogTitle style={{ fontSize: rpx(16), fontWeight: '700' }}>退出登录</DialogTitle>
+          </DialogHeader>
+          <View style={{ padding: `0 ${rpx(16)} ${rpx(16)}` }}>
+            <Text className="block or-desc" style={{ marginBottom: rpx(12), lineHeight: rpx(17) }}>
+              退出后本机不再自动登录，需重新点「微信一键登录」。云端数据仍保存在服务端，重新登录后可用「从云端恢复」取回；当前本机共 {list.length} 条订阅。
+            </Text>
+            <Button className="btn btn-block btn-ghost" onClick={() => confirmLogout(false)}>
+              退出并保留本机数据
+            </Button>
+            <Button
+              variant="outline"
+              className="btn btn-block"
+              style={{ marginTop: rpx(8) }}
+              onClick={() => confirmLogout(true)}
+            >
+              退出并清空本机数据
+            </Button>
+            <Button
+              variant="ghost"
+              className="btn btn-block"
+              style={{ marginTop: rpx(8) }}
+              onClick={() => setLogoutOpen(false)}
+            >
+              取消
+            </Button>
           </View>
         </DialogContent>
       </Dialog>

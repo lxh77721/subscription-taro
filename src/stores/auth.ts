@@ -4,6 +4,8 @@ import { Network } from '@/network'
 
 /** 登录态本地存储 key */
 export const AUTH_KEY = 'app_auth'
+/** 主动退出登录标记：置位后不再静默自动登录，需用户重新点登录 */
+export const LOGOUT_FLAG_KEY = 'app_logged_out'
 
 interface AuthInfo {
   openid: string
@@ -23,16 +25,27 @@ interface ProfileInfo {
 interface AuthState extends AuthInfo, ProfileInfo {
   /** 是否已完成一次登录尝试（含跳过） */
   tried: boolean
+  /** 用户是否主动退出（退出后不再静默自动登录） */
+  loggedOut: boolean
   /** 恢复本地登录态 */
   restore: () => void
   /** 微信登录：code → 后端换取 openid + 令牌 */
   login: () => Promise<boolean>
   /** 更新本地展示用的昵称 / 头像 */
   updateProfile: (patch: Partial<ProfileInfo>) => void
+  /** 退出登录：清除登录态并记住「已退出」，避免被 wx.login 静默重新登录 */
   logout: () => void
+  /** 清除退出标记（用户主动重新登录时调用） */
+  clearLogout: () => void
 }
 
-function load(): AuthInfo & ProfileInfo {
+function load(): AuthInfo & ProfileInfo & { loggedOut: boolean } {
+  let loggedOut = false
+  try {
+    loggedOut = Taro.getStorageSync(LOGOUT_FLAG_KEY) === true
+  } catch (e) {
+    console.warn('[auth] 读取退出标记失败', e)
+  }
   try {
     const raw = Taro.getStorageSync(AUTH_KEY) as (AuthInfo & Partial<ProfileInfo>) | undefined
     if (raw && raw.token && (!raw.expireAt || raw.expireAt > Date.now())) {
@@ -43,12 +56,13 @@ function load(): AuthInfo & ProfileInfo {
         nickname: raw.nickname || '',
         avatarUrl: raw.avatarUrl || '',
         phone: raw.phone || '',
+        loggedOut,
       }
     }
   } catch (e) {
     console.warn('[auth] 读取登录态失败', e)
   }
-  return { openid: '', token: '', expireAt: 0, nickname: '', avatarUrl: '', phone: '' }
+  return { openid: '', token: '', expireAt: 0, nickname: '', avatarUrl: '', phone: '', loggedOut }
 }
 
 /** 写入登录态（保留已有的昵称/头像） */
@@ -98,7 +112,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         phone,
       }
       persist(info)
-      set({ ...info, tried: true })
+      try {
+        Taro.removeStorageSync(LOGOUT_FLAG_KEY)
+      } catch (e) {
+        console.warn('[auth] 清除退出标记失败', e)
+      }
+      set({ ...info, tried: true, loggedOut: false })
       return true
     } catch (e) {
       console.warn('[auth] 登录失败', e)
@@ -121,8 +140,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
-    Taro.removeStorageSync(AUTH_KEY)
-    set({ openid: '', token: '', expireAt: 0, nickname: '', avatarUrl: '', phone: '', tried: true })
+    try {
+      Taro.removeStorageSync(AUTH_KEY)
+      Taro.setStorageSync(LOGOUT_FLAG_KEY, true)
+    } catch (e) {
+      console.warn('[auth] 退出登录失败', e)
+    }
+    set({
+      openid: '',
+      token: '',
+      expireAt: 0,
+      nickname: '',
+      avatarUrl: '',
+      phone: '',
+      tried: true,
+      loggedOut: true,
+    })
+  },
+
+  clearLogout: () => {
+    try {
+      Taro.removeStorageSync(LOGOUT_FLAG_KEY)
+    } catch (e) {
+      console.warn('[auth] 清除退出标记失败', e)
+    }
+    set({ loggedOut: false })
   },
 }))
 
