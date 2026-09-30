@@ -70,6 +70,36 @@ export class WxClient {
     return res.access_token;
   }
 
+  /**
+   * 用手机号快速验证组件回调的 code 换取用户真实手机号。
+   * 注意：该能力需非个人主体小程序，且微信按次收费。
+   */
+  async getPhoneNumber(
+    code: string,
+  ): Promise<{ phoneNumber?: string; errcode?: number; errmsg?: string }> {
+    const token = await this.getAccessToken();
+    const res = await fetch(
+      `https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=${token}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      },
+    ).then(
+      (r) =>
+        r.json() as Promise<{
+          errcode?: number;
+          errmsg?: string;
+          phone_info?: { phoneNumber?: string; purePhoneNumber?: string };
+        }>,
+    );
+    return {
+      phoneNumber: res.phone_info?.phoneNumber || res.phone_info?.purePhoneNumber,
+      errcode: res.errcode,
+      errmsg: res.errmsg,
+    };
+  }
+
   /** 发送一条订阅消息 */
   async sendSubscribeMessage(input: {
     openid: string;

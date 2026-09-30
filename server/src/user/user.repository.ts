@@ -64,13 +64,19 @@ export class UserRepository {
   /** 局部更新资料 / 配置，未传入的字段保留原值 */
   async upsert(
     openid: string,
-    patch: { nickname?: string; avatarUrl?: string; settings?: Record<string, unknown> | null },
+    patch: {
+      nickname?: string;
+      avatarUrl?: string;
+      phone?: string;
+      settings?: Record<string, unknown> | null;
+    },
   ): Promise<UserProfileRow> {
     const prev = await this.get(openid);
     const next: UserProfileRow = {
       openid,
       nickname: patch.nickname ?? prev?.nickname ?? '',
       avatarUrl: patch.avatarUrl ?? prev?.avatarUrl ?? null,
+      phone: patch.phone ?? prev?.phone ?? null,
       settings: patch.settings ?? prev?.settings ?? null,
       updatedAt: new Date().toISOString(),
     };
@@ -87,6 +93,7 @@ export class UserRepository {
         openid: next.openid,
         nickname: next.nickname,
         avatar_url: next.avatarUrl,
+        phone: next.phone,
         settings: next.settings,
         updated_at: next.updatedAt,
       },
@@ -101,6 +108,7 @@ export class UserRepository {
       openid: String(r.openid),
       nickname: r.nickname != null ? String(r.nickname) : '',
       avatarUrl: r.avatar_url != null ? String(r.avatar_url) : null,
+      phone: r.phone != null ? String(r.phone) : null,
       settings: (r.settings as Record<string, unknown> | null) ?? null,
       updatedAt: String(r.updated_at ?? ''),
     };

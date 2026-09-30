@@ -1,5 +1,5 @@
 import * as React from "react"
-import { View } from "@tarojs/components"
+import { Button as TaroButton, type ButtonProps as TaroButtonProps, View } from "@tarojs/components"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
@@ -39,11 +39,30 @@ export interface ButtonProps
   asChild?: boolean
   disabled?: boolean
   className?: string
+  /** 微信开放能力（如 getPhoneNumber）；传了该值会改用原生 button 渲染 */
+  openType?: TaroButtonProps["openType"]
+  onGetPhoneNumber?: TaroButtonProps["onGetPhoneNumber"]
 }
 
 const Button = React.forwardRef<React.ElementRef<typeof View>, ButtonProps>(
-  ({ className, variant, size, asChild = false, disabled, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, disabled, openType, onGetPhoneNumber, ...props }, ref) => {
     const tabIndex = (props as { tabIndex?: number }).tabIndex ?? (disabled ? -1 : 0)
+    const cls = cn(buttonVariants({ variant, size, className }), disabled && "opacity-50 pointer-events-none")
+
+    // 需要微信开放能力时必须用原生 button（View 无法触发授权弹窗）
+    if (openType) {
+      const { tabIndex: _ignored, ...rest } = props as { tabIndex?: number }
+      return (
+        <TaroButton
+          className={cls}
+          openType={openType}
+          disabled={!!disabled}
+          onGetPhoneNumber={onGetPhoneNumber}
+          {...rest}
+        />
+      )
+    }
+
     return (
       <View
         className={cn(

@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/auth'
 import { allCategories, formatMoney, upcoming, yearCost } from '@/utils/subscription'
 import { persistAvatar } from '@/utils/profile'
 import { ensureLogin, pullFromCloud, pushToCloud, pushUserState } from '@/utils/sync'
+import { bindPhone } from '@/utils/api'
 import {
   type ExportRange,
   billFileName,
@@ -58,6 +59,7 @@ const ProfilePage = () => {
   const nickname = useAuthStore((s) => s.nickname)
   const avatarUrl = useAuthStore((s) => s.avatarUrl)
   const openid = useAuthStore((s) => s.openid)
+  const phone = useAuthStore((s) => s.phone)
   const updateProfile = useAuthStore((s) => s.updateProfile)
 
   const [exportOpen, setExportOpen] = useState(false)
@@ -66,6 +68,9 @@ const ProfilePage = () => {
   const [logging, setLogging] = useState(false)
   /** 是否展开「使用微信头像/昵称」编辑（默认不展开，登录无需任何输入） */
   const [editingProfile, setEditingProfile] = useState(false)
+  /** 登录弹层：wx 身份自动获取 → 用户一键验证手机号 */
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [loginStep, setLoginStep] = useState<'wx' | 'phone' | 'fail'>('wx')
 
   useDidShow(() => {
     refresh()
@@ -177,16 +182,35 @@ const ProfilePage = () => {
     </View>
   )
 
-  /** 微信一键登录：code → 服务端换 openid，无需输入任何信息 */
+  /** 打开登录弹层：先静默完成 wx.login，再引导一键验证手机号 */
   const login = async () => {
-    setLogging(true)
+    setLoginOpen(true)
+    setLoginStep('wx')
     const ok = await ensureLogin()
-    setLogging(false)
-    if (!ok) {
+    setLoginStep(ok ? 'phone' : 'fail')
+  }
+
+  /** 手机号快速验证：code → 服务端换取手机号 → 登录完成 */
+  const submitPhone = async (code?: string) => {
+    if (!code) {
+      toast.warning('未获取到手机号授权')
+      return
+    }
+    setLogging(true)
+    if (!(await ensureLogin())) {
+      setLogging(false)
       toast.warning('登录失败，请检查网络或服务端配置')
       return
     }
-    toast.success('已登录，订阅与设置会自动备份到云端')
+    const got = await bindPhone(code)
+    setLogging(false)
+    if (!got) {
+      toast.warning('手机号验证失败：需企业主体小程序并开通该组件')
+      return
+    }
+    updateProfile({ phone: got })
+    setLoginOpen(false)
+    toast.success('登录成功')
     void pushUserState()
   }
 
@@ -263,7 +287,7 @@ const ProfilePage = () => {
                 <Text className="block pc-name">{displayName}</Text>
               )}
               <Text className="block pc-sub">
-                已登录 · 订阅与设置已存云端 · 已管理 {list.length} 个订阅
+                {phone ? `${phone} · ` : ''}订阅与设置已存云端 · 已管理 {list.length} 个订阅
               </Text>
               {!editingProfile && (
                 <Text
@@ -327,6 +351,34 @@ const ProfilePage = () => {
       <Text className="block" style={{ fontSize: rpx(11), color: '#C4C4CC', textAlign: 'center' }}>
         {busy ? '同步中…' : '订阅数据默认存本机，登录后按微信账号备份到云端'}
       </Text>
+
+      {/* 登录弹层：微信身份自动获取 → 一键验证手机号 */}
+      <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
+        <DialogContent style={{ borderRadius: rpx(20), background: '#fff' }}>
+          <DialogHeader style={{ padding: `${rpx(14)} ${rpx(16)} ${rpx(6)}` }}>
+            <DialogTitle style={{ fontSize: rpx(16), fontWeight: '700' }}>登录订阅管家</DialogTitle>
+          </DialogHeader>
+          <View style={{ padding: `0 ${rpx(16)} ${rpx(16)}` }}>
+            <Text className="block or-desc" style={{ marginBottom: rpx(10) }}>
+              1. 微信身份：{loginStep === 'wx' ? '获取中' : loginStep === 'phone' ? '已获取' : '获取失败'}
+            </Text>
+            <Text className="block form-label" style={{ marginBottom: rpx(8) }}>
+              2. 一键验证手机号
+            </Text>
+            <Button
+              className="btn btn-primary btn-block"
+              openType="getPhoneNumber"
+              disabled={loginStep !== 'phone' || logging}
+              onGetPhoneNumber={(e) => void submitPhone(e?.detail?.code)}
+            >
+              {logging ? '登录中' : '微信手机号一键登录'}
+            </Button>
+            <Text className="block or-desc" style={{ marginTop: rpx(8), lineHeight: rpx(16) }}>
+              点上方按钮后，微信会弹出「绑定手机号」，点允许即完成登录。手机号仅用于识别账号，展示时脱敏。
+            </Text>
+          </View>
+        </DialogContent>
+      </Dialog>
 
       {/* 导出账单 */}
       <Dialog open={exportOpen} onOpenChange={setExportOpen}>

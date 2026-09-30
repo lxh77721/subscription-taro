@@ -116,6 +116,8 @@ export const userProfiles = pgTable("user_profiles", {
 	nickname: varchar("nickname", { length: 40 }).notNull().default(""),
 	/** 头像（微信头像填写能力得到的本地或远程地址） */
 	avatarUrl: varchar("avatar_url", { length: 500 }),
+	/** 手机号快速验证组件换取的手机号（仅存明文用于账号识别，展示时脱敏） */
+	phone: varchar("phone", { length: 32 }),
 	/** 小程序设置：预算 / 分类 / 支付方式 / 提醒偏好等 */
 	settings: jsonb("settings").$type<Record<string, unknown>>(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -127,6 +129,7 @@ export interface UserProfileRow {
 	openid: string;
 	nickname: string;
 	avatarUrl: string | null;
+	phone: string | null;
 	settings: Record<string, unknown> | null;
 	updatedAt: string;
 }

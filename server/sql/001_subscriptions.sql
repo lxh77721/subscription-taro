@@ -36,3 +36,5 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS phone varchar(32);

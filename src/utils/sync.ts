@@ -31,12 +31,14 @@ export async function ensureLogin(): Promise<boolean> {
 async function restoreCloudProfile(): Promise<void> {
   const state = await fetchUserState()
   const auth = useAuthStore.getState()
-  const patch: { nickname?: string; avatarUrl?: string } = {}
+  const patch: { nickname?: string; avatarUrl?: string; phone?: string } = {}
   if (!auth.nickname) {
     patch.nickname = state?.profile?.nickname || `微信用户${auth.openid.slice(-4)}`
   }
   if (!auth.avatarUrl && state?.profile?.avatarUrl) patch.avatarUrl = state.profile.avatarUrl
-  if (!patch.nickname && !patch.avatarUrl) return
+  // 服务端返回的是脱敏手机号，只用于展示
+  if (!auth.phone && state?.profile?.phone) patch.phone = state.profile.phone
+  if (!patch.nickname && !patch.avatarUrl && !patch.phone) return
   auth.updateProfile(patch)
   // 生成的默认昵称也存一份到云端，换设备保持一致
   void pushUserState()

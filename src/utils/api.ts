@@ -71,9 +71,9 @@ export async function fetchSubscriptions(): Promise<Subscription[] | null> {
   }
 }
 
-/** 云端用户资料与设置 */
+/** 云端用户资料与设置（手机号对外只返回脱敏值） */
 export interface UserState {
-  profile: { nickname: string; avatarUrl: string | null }
+  profile: { nickname: string; avatarUrl: string | null; phone: string | null }
   settings: Record<string, unknown> | null
   updatedAt: string
 }
@@ -100,6 +100,18 @@ export async function saveUserState(body: {
   } catch (e) {
     console.warn('[api] save user state failed', e)
     return false
+  }
+}
+
+/** 绑定手机号：wx 手机号快速验证组件的 code → 服务端换取并存库，返回脱敏手机号 */
+export async function bindPhone(code: string): Promise<string | null> {
+  try {
+    const res = await Network.request(withAuth({ url: '/api/auth/phone', method: 'POST', data: { code } }))
+    const data = unwrap<{ phone: string }>(res as { data?: unknown })
+    return data?.phone || null
+  } catch (e) {
+    console.warn('[api] bind phone failed', e)
+    return null
   }
 }
 

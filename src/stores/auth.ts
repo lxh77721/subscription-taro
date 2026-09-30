@@ -16,6 +16,8 @@ interface ProfileInfo {
   nickname: string
   /** 头像本地文件路径（用户通过 chooseAvatar 选择后转存） */
   avatarUrl: string
+  /** 已绑定手机号（脱敏展示，如 138****8888） */
+  phone: string
 }
 
 interface AuthState extends AuthInfo, ProfileInfo {
@@ -40,12 +42,13 @@ function load(): AuthInfo & ProfileInfo {
         expireAt: raw.expireAt || 0,
         nickname: raw.nickname || '',
         avatarUrl: raw.avatarUrl || '',
+        phone: raw.phone || '',
       }
     }
   } catch (e) {
     console.warn('[auth] 读取登录态失败', e)
   }
-  return { openid: '', token: '', expireAt: 0, nickname: '', avatarUrl: '' }
+  return { openid: '', token: '', expireAt: 0, nickname: '', avatarUrl: '', phone: '' }
 }
 
 /** 写入登录态（保留已有的昵称/头像） */
@@ -85,13 +88,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ tried: true })
         return false
       }
-      const { nickname, avatarUrl } = get()
+      const { nickname, avatarUrl, phone } = get()
       const info: AuthInfo & ProfileInfo = {
         openid: data.openid,
         token: data.token,
         expireAt: data.expireAt,
         nickname,
         avatarUrl,
+        phone,
       }
       persist(info)
       set({ ...info, tried: true })
@@ -105,13 +109,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updateProfile: (patch) => {
     const next = { ...load(), ...get(), ...patch } as AuthInfo & ProfileInfo
-    persist({ openid: next.openid, token: next.token, expireAt: next.expireAt, nickname: next.nickname, avatarUrl: next.avatarUrl })
+    persist({
+      openid: next.openid,
+      token: next.token,
+      expireAt: next.expireAt,
+      nickname: next.nickname,
+      avatarUrl: next.avatarUrl,
+      phone: next.phone,
+    })
     set(patch)
   },
 
   logout: () => {
     Taro.removeStorageSync(AUTH_KEY)
-    set({ openid: '', token: '', expireAt: 0, nickname: '', avatarUrl: '', tried: true })
+    set({ openid: '', token: '', expireAt: 0, nickname: '', avatarUrl: '', phone: '', tried: true })
   },
 }))
 
