@@ -195,7 +195,7 @@ const EditPage = () => {
             amount: String(free ? 0 : amount),
             page: 'pages/index/index',
           })
-          toast.success(`已开启到期提醒（提前${form.remindDays}天）`)
+          toast.success(`已开启扣费提醒（提前${form.remindDays}天）`)
         } catch (e) {
           console.warn('[edit] register reminder skipped', e)
         }

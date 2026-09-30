@@ -11,7 +11,7 @@ export type BuiltinCategory = 'video' | 'ai' | 'cloud' | 'shopping' | 'reading' 
 export type Category = BuiltinCategory | (string & {})
 /** 订阅状态 */
 export type SubStatus = 'active' | 'paused' | 'cancelled'
-/** 到期提醒：提前天数（0 = 不提醒） */
+/** 扣费提醒：提前天数（0 = 不提醒） */
 export type RemindDays = 0 | 1 | 3 | 7
 
 /** 订阅周期定义 */
@@ -34,7 +34,7 @@ export interface Subscription {
   startDate: string
   /** 结束时间 YYYY-MM-DD（可选） */
   endDate?: string
-  /** 到期提醒提前天数 */
+  /** 扣费提醒提前天数 */
   remindDays: RemindDays
   category: Category
   /** 订阅描述 */
@@ -160,7 +160,10 @@ export function planLabel(plan: Plan): string {
   }
 }
 
-/** 到期提醒选项 */
+/**
+ * 扣费提醒选项：自动续费订阅的「到期日」就是「下次扣费日」，
+ * 所以「到期前 N 天」即「扣费前 N 天」，两者是同一件事。
+ */
 export const REMIND_OPTIONS: { value: RemindDays; label: string }[] = [
   { value: 0, label: '不提醒' },
   { value: 1, label: '提前1天' },
