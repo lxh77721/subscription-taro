@@ -64,6 +64,8 @@ const ProfilePage = () => {
   const [range, setRange] = useState<ExportRange>('recent3')
   const [busy, setBusy] = useState(false)
   const [logging, setLogging] = useState(false)
+  /** 是否展开「使用微信头像/昵称」编辑（默认不展开，登录无需任何输入） */
+  const [editingProfile, setEditingProfile] = useState(false)
 
   useDidShow(() => {
     refresh()
@@ -231,7 +233,9 @@ const ProfilePage = () => {
     else toast.warning('复制失败，请稍后重试')
   }
 
-  const initial = (nickname || '用').trim().slice(0, 1)
+  /** 未设置昵称时按 openid 自动生成（微信不允许静默读取真实昵称） */
+  const displayName = nickname || (openid ? `微信用户${openid.slice(-4)}` : '未登录')
+  const initial = displayName.trim().slice(0, 1)
 
   return (
     <View className="page-pad min-h-full w-full bg-[#F4F4F6]">
@@ -241,18 +245,35 @@ const ProfilePage = () => {
           <View style={{ display: 'flex', alignItems: 'center', gap: rpx(14) }}>
             <AvatarPicker url={avatarUrl} initial={initial} onPick={(p) => void onPickAvatar(p)} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Input
-                type="nickname"
-                className="pc-name border-0 bg-transparent h-auto px-0 py-0"
-                placeholder="点击使用微信昵称"
-                value={nickname}
-                maxlength={20}
-                onInput={(e) => updateProfile({ nickname: e.detail.value })}
-                onBlur={() => void syncProfile()}
-              />
+              {editingProfile ? (
+                <Input
+                  type="nickname"
+                  className="pc-name border-0 bg-transparent h-auto px-0 py-0"
+                  placeholder="点击使用微信昵称"
+                  value={nickname}
+                  maxlength={20}
+                  autoFocus
+                  onInput={(e) => updateProfile({ nickname: e.detail.value })}
+                  onBlur={() => {
+                    setEditingProfile(false)
+                    void syncProfile()
+                  }}
+                />
+              ) : (
+                <Text className="block pc-name">{displayName}</Text>
+              )}
               <Text className="block pc-sub">
-                微信用户 · 订阅与设置已存云端 · 已管理 {list.length} 个订阅
+                已登录 · 订阅与设置已存云端 · 已管理 {list.length} 个订阅
               </Text>
+              {!editingProfile && (
+                <Text
+                  className="block"
+                  style={{ fontSize: rpx(10.5), color: '#2563EB', marginTop: rpx(4) }}
+                  onClick={() => setEditingProfile(true)}
+                >
+                  使用我的微信头像/昵称
+                </Text>
+              )}
             </View>
           </View>
         ) : (

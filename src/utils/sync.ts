@@ -13,21 +13,33 @@ import { requestSubscribeReminder } from './wxmsg'
 /** 确保已有登录态（没有就静默登录一次），登录成功后自动补齐云端资料 */
 export async function ensureLogin(): Promise<boolean> {
   const auth = useAuthStore.getState()
-  if (auth.token) return true
+  if (auth.token) {
+    // 老账号没昵称时补一个（登录本身不需要用户做任何操作）
+    if (!auth.nickname) await restoreCloudProfile()
+    return true
+  }
   const ok = await auth.login()
   if (ok) await restoreCloudProfile()
   return ok
 }
 
-/** 用云端资料补齐本机昵称/头像（本机已有则不覆盖） */
+/**
+ * 登录后自动补齐头像与昵称：优先用云端保存过的，没有则按 openid 生成默认昵称。
+ * 微信已回收 getUserInfo，无法静默读取真实头像昵称，因此默认昵称由系统生成，
+ * 用户无需任何输入即可完成登录。
+ */
 async function restoreCloudProfile(): Promise<void> {
   const state = await fetchUserState()
-  if (!state?.profile) return
   const auth = useAuthStore.getState()
   const patch: { nickname?: string; avatarUrl?: string } = {}
-  if (!auth.nickname && state.profile.nickname) patch.nickname = state.profile.nickname
-  if (!auth.avatarUrl && state.profile.avatarUrl) patch.avatarUrl = state.profile.avatarUrl
-  if (patch.nickname || patch.avatarUrl) auth.updateProfile(patch)
+  if (!auth.nickname) {
+    patch.nickname = state?.profile?.nickname || `微信用户${auth.openid.slice(-4)}`
+  }
+  if (!auth.avatarUrl && state?.profile?.avatarUrl) patch.avatarUrl = state.profile.avatarUrl
+  if (!patch.nickname && !patch.avatarUrl) return
+  auth.updateProfile(patch)
+  // 生成的默认昵称也存一份到云端，换设备保持一致
+  void pushUserState()
 }
 
 /** 把本机「资料 + 偏好设置」上传到云端 */
