@@ -134,6 +134,12 @@ export class SubscriptionService {
     return rows.map((r) => this.toPayload(r));
   }
 
+  /** 新增或更新单条订阅 */
+  async upsert(openid: string, p: SubscriptionPayload): Promise<SubscriptionPayload> {
+    const row = await this.repo.upsertOne(openid, this.toRow(openid, p));
+    return this.toPayload(row);
+  }
+
   async list(openid: string): Promise<SubscriptionPayload[]> {
     const rows = await this.repo.list(openid);
     return rows.map((r) => this.toPayload(r)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));

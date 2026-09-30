@@ -67,7 +67,7 @@ const ReminderPage = () => {
   }
 
   useDidShow(() => {
-    refresh()
+    void refresh()
     void loadMonitor()
     // 页面停留期间每 15 秒刷新一次，实时反映能否收到通知
     if (timer.current) clearInterval(timer.current)

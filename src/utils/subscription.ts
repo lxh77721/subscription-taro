@@ -1,9 +1,5 @@
-import Taro from '@tarojs/taro'
-import { type CategoryDef, type Settings, loadSettings, currencySymbol } from './settings'
+import { type CategoryDef, type Settings, DEFAULT_SETTINGS, currencySymbol } from './settings'
 import { APP_ICONS } from './appicons'
-
-/** 本地存储 key */
-export const STORAGE_KEY = 'subscription_manager_data_v4'
 
 /** 周期类型 */
 export type PlanType = 'month' | 'quarter' | 'year' | 'oneTime' | 'custom' | 'free'
@@ -92,9 +88,9 @@ export const CATEGORY_MAP: Record<string, string> = CATEGORIES.reduce(
   {} as Record<string, string>,
 )
 
-/** 内置分类 + 用户自定义分类（未传 settings 时自动读取本地设置） */
+/** 内置分类 + 用户自定义分类（不传 settings 时只返回内置分类） */
 export function allCategories(settings?: Pick<Settings, 'customCategories'>): CategoryDef[] {
-  const custom = settings?.customCategories || loadSettings().customCategories || []
+  const custom = settings?.customCategories || []
   return [...CATEGORIES, ...custom]
 }
 
@@ -241,69 +237,6 @@ export const PRESETS: Preset[] = [
   { name: 'NordVPN', emoji: '🛡️', amount: 35, category: 'security', domain: 'nordvpn.com' },
 ]
 
-/**
- * 演示数据：首次安装时写入一份主流订阅样例，便于直接预览效果。
- * 只在本地无任何数据且未初始化过时执行一次（SEED_KEY 标记）。
- */
-const SEED_PLAN: { name: string; amount: number; offset: number; months: number; plan?: PlanType }[] = [
-  { name: 'Netflix', amount: 68, offset: 26, months: 14 },
-  { name: 'Spotify', amount: 18, offset: 21, months: 9 },
-  { name: 'YouTube Premium', amount: 38, offset: 9, months: 7 },
-  { name: 'Apple Music', amount: 11, offset: 16, months: 26 },
-  { name: '网易云音乐', amount: 12, offset: 27, months: 22 },
-  { name: 'QQ音乐', amount: 15, offset: 12, months: 5 },
-  { name: '爱奇艺', amount: 25, offset: 13, months: 11 },
-  { name: '优酷', amount: 20, offset: 5, months: 3 },
-  { name: '腾讯视频', amount: 25, offset: 8, months: 18 },
-  { name: '哔哩哔哩', amount: 15, offset: 3, months: 2 },
-  { name: '芒果TV', amount: 22, offset: 18, months: 6 },
-  { name: 'ChatGPT Plus', amount: 145, offset: 14, months: 8 },
-  { name: 'Claude Pro', amount: 150, offset: 7, months: 4 },
-  { name: 'GitHub Copilot', amount: 72, offset: 24, months: 12 },
-  { name: 'Notion', amount: 58, offset: 11, months: 3 },
-  { name: 'Microsoft 365', amount: 498, offset: 120, months: 24, plan: 'year' },
-  { name: 'WPS', amount: 89, offset: 200, months: 24, plan: 'year' },
-  { name: 'iCloud+', amount: 21, offset: 23, months: 30 },
-  { name: 'Google One', amount: 68, offset: 17, months: 16 },
-  { name: '百度网盘', amount: 30, offset: 6, months: 9 },
-  { name: '阿里云盘', amount: 12, offset: 19, months: 5 },
-  { name: '淘宝 88VIP', amount: 888, offset: 160, months: 26, plan: 'year' },
-  { name: '京东 PLUS', amount: 149, offset: 60, months: 12, plan: 'year' },
-  { name: '美团外卖会员', amount: 15, offset: 20, months: 7 },
-  { name: '微信读书', amount: 19, offset: 25, months: 4 },
-  { name: '知乎盐选', amount: 19, offset: 15, months: 2 },
-  { name: 'Xbox Game Pass', amount: 39, offset: 2, months: 6 },
-  { name: 'PlayStation Plus', amount: 45, offset: 4, months: 3 },
-  { name: 'Discord Nitro', amount: 68, offset: 22, months: 15 },
-  { name: '1Password', amount: 50, offset: 10, months: 20 },
-  { name: 'NordVPN', amount: 35, offset: 1, months: 1 },
-]
-
-export function seedDemoData(): Subscription[] {
-  const now = Date.now()
-  return SEED_PLAN.map((seed, i) => {
-    const preset = PRESETS.find((p) => p.name === seed.name)
-    const status: SubStatus = i % 11 === 10 ? 'paused' : 'active'
-    return {
-      id: genId() + i,
-      name: seed.name,
-      emoji: preset?.emoji || '📌',
-      amount: seed.amount,
-      plan: { type: seed.plan || 'month' },
-      // offset 决定「下次扣费日」，months 决定「已订阅历史长度」，两者叠加保证日号不变
-      startDate: todayStr(-(seed.offset + seed.months * 30)),
-      remindDays: 3,
-      category: preset?.category || 'video',
-      domain: preset?.domain,
-      payment: ['招商银行 (6621)', '支付宝', '微信支付', 'Visa (8890)', 'Apple 账户'][i % 5],
-      status,
-      note: '',
-      createdAt: now - i * 1000,
-    } as Subscription
-  })
-}
-
-/** 订阅已持续月数（用于展示“连续 N 个月”） */
 export function monthsSince(startDate: string): number {
   const start = parseDate(startDate)
   const now = new Date()
@@ -371,26 +304,6 @@ export function presetByCategory(): { category: Category; label: string; items: 
     label: c.label,
     items: PRESETS.filter((p) => p.category === c.value),
   })).filter((g) => g.items.length > 0)
-}
-
-/* ─────────── 存储读写 ─────────── */
-
-export function loadSubscriptions(): Subscription[] {
-  try {
-    const raw = Taro.getStorageSync(STORAGE_KEY)
-    if (Array.isArray(raw)) return raw as Subscription[]
-    return []
-  } catch (e) {
-    return []
-  }
-}
-
-export function saveSubscriptions(list: Subscription[]): void {
-  try {
-    Taro.setStorageSync(STORAGE_KEY, list)
-  } catch (e) {
-    console.warn('[storage] 保存失败', e)
-  }
 }
 
 export function genId(): string {
@@ -748,9 +661,9 @@ export function groupByCategory(
   })).filter((g) => g.items.length > 0)
 }
 
-export function formatMoney(n: number): string {
+export function formatMoney(n: number, currency: string = DEFAULT_SETTINGS.currency): string {
   const v = Math.round(n * 100) / 100
-  const sym = currencySymbol(loadSettings().currency)
+  const sym = currencySymbol(currency)
   const str = v % 1 === 0 ? String(v) : v.toFixed(2)
   const [int, dec] = str.split('.')
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',')

@@ -22,7 +22,7 @@ const StatisticsPage = () => {
   const refresh = useSubscriptionStore((s) => s.refresh)
 
   useDidShow(() => {
-    refresh()
+    void refresh()
   })
 
   const year = new Date().getFullYear()

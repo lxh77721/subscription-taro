@@ -30,7 +30,7 @@ const CategoryPage = () => {
   const [draft, setDraft] = useState<Draft | null>(null)
 
   useDidShow(() => {
-    refresh()
+    void refresh()
   })
 
   const custom = settings.customCategories || []

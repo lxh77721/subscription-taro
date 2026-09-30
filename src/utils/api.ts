@@ -24,15 +24,28 @@ function withAuth(option: { url: string; method?: string; data?: unknown; header
   } as Parameters<typeof Network.request>[0]
 }
 
-/** 全量同步本地订阅到服务端（失败静默，不影响本地使用） */
-export async function syncSubscriptions(list: Subscription[]): Promise<boolean> {
+/** 新增或更新单条订阅到云端（数据以云端为准，前端不落本地缓存） */
+export async function saveSubscription(item: Subscription): Promise<Subscription | null> {
   try {
     const res = await Network.request(
-      withAuth({ url: '/api/subscription/sync', method: 'POST', data: { list } }),
+      withAuth({ url: '/api/subscription', method: 'POST', data: item }),
     )
-    return !!unwrap<{ count: number }>(res as { data?: unknown })
+    return unwrap<Subscription>(res as { data?: unknown })
   } catch (e) {
-    console.warn('[api] sync failed', e)
+    console.warn('[api] save subscription failed', e)
+    return null
+  }
+}
+
+/** 从云端删除单条订阅 */
+export async function deleteSubscription(id: string): Promise<boolean> {
+  try {
+    const res = await Network.request(
+      withAuth({ url: `/api/subscription/${id}`, method: 'DELETE' }),
+    )
+    return !!(res?.data as { success?: boolean })?.success
+  } catch (e) {
+    console.warn('[api] delete subscription failed', e)
     return false
   }
 }

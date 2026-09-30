@@ -22,7 +22,7 @@ import { useSubscriptionStore } from '@/stores/subscription'
 import { useAuthStore } from '@/stores/auth'
 import { allCategories, formatMoney, upcoming, yearCost } from '@/utils/subscription'
 import { persistAvatar } from '@/utils/profile'
-import { ensureLogin, pullFromCloud, pushToCloud, pushUserState } from '@/utils/sync'
+import { ensureLogin, pushProfile } from '@/utils/sync'
 import {
   type ExportRange,
   billFileName,
@@ -42,16 +42,6 @@ interface MenuItem {
   onClick: () => void
 }
 
-/** 相对时间描述 */
-function fromNow(ts: number): string {
-  if (!ts) return '未备份'
-  const diff = Date.now() - ts
-  if (diff < 60_000) return '刚刚'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`
-  return `${Math.floor(diff / 86_400_000)} 天前`
-}
-
 const ProfilePage = () => {
   const list = useSubscriptionStore((s) => s.list)
   const settings = useSubscriptionStore((s) => s.settings)
@@ -66,7 +56,6 @@ const ProfilePage = () => {
 
   const [exportOpen, setExportOpen] = useState(false)
   const [range, setRange] = useState<ExportRange>('recent3')
-  const [busy, setBusy] = useState(false)
   const [logging, setLogging] = useState(false)
   /** 是否展开「使用微信头像/昵称」编辑（默认不展开，登录无需任何输入） */
   const [editingProfile, setEditingProfile] = useState(false)
@@ -77,9 +66,9 @@ const ProfilePage = () => {
   const [logoutOpen, setLogoutOpen] = useState(false)
 
   useDidShow(() => {
-    refresh()
-    // 进入「我的」即静默完成微信登录（无需任何输入），登录后自动补齐云端资料
+    // 进入「我的」即静默完成微信登录，并从云端读取该账号的资料与设置
     void ensureLogin()
+    void refresh()
   })
 
   const yearly = yearCost(list)
@@ -124,47 +113,12 @@ const ProfilePage = () => {
     },
   ]
 
-  const backup = async () => {
-    setBusy(true)
-    const ok = await pushToCloud()
-    setBusy(false)
-    if (ok) toast.success('已备份到云端')
-    else toast.warning('备份失败，请检查网络或服务端配置')
-  }
-
-  const restore = () => {
-    Taro.showModal({
-      title: '从云端恢复',
-      content: `将用云端数据覆盖本机当前的 ${list.length} 条订阅，确定继续？`,
-      success: async (res) => {
-        if (!res.confirm) return
-        setBusy(true)
-        const n = await pullFromCloud()
-        setBusy(false)
-        if (n >= 0) toast.success(`已恢复 ${n} 条订阅`)
-        else toast.warning('恢复失败，请检查网络或服务端配置')
-      },
-    })
-  }
-
   const dataMenus: MenuItem[] = [
     {
       icon: <FileDown size={rpx(16)} color={ICO} />,
       title: '导出账单',
       value: 'CSV',
       onClick: () => setExportOpen(true),
-    },
-    {
-      icon: <Info size={rpx(16)} color={ICO} />,
-      title: '备份到云端',
-      value: fromNow(settings.lastSyncAt),
-      onClick: backup,
-    },
-    {
-      icon: <Info size={rpx(16)} color={ICO} />,
-      title: '从云端恢复',
-      value: openid ? '已登录' : '未登录',
-      onClick: restore,
     },
     {
       icon: <Trash2 size={rpx(16)} color={ICO} />,
@@ -222,23 +176,22 @@ const ProfilePage = () => {
     }
     setLoginOpen(false)
     toast.success('登录成功')
-    void pushUserState()
+    void pushProfile()
   }
 
   /**
    * 退出登录：清除本地登录态，之后不会再被静默登录，需重新点「微信一键登录」。
-   * 云端数据仍在服务端，重新登录后可直接恢复；本机数据可保留或清空。
+   * 数据本身保存在云端账号下，重新登录后原样可见。
    */
-  const confirmLogout = (clearLocal: boolean) => {
+  const confirmLogout = () => {
     setLogoutOpen(false)
-    if (clearLocal) useSubscriptionStore.getState().replaceAll([])
     logout()
-    toast.success(clearLocal ? '已退出，本机订阅数据已清空' : '已退出登录，本机数据已保留')
+    toast.success('已退出登录')
   }
 
   /** 昵称/头像改动后同步到云端 */
   const syncProfile = () => {
-    void pushUserState()
+    void pushProfile()
   }
 
   const onPickAvatar = async (tempPath: string) => {
@@ -367,10 +320,10 @@ const ProfilePage = () => {
       <View className="menu-card">{otherMenus.map((m) => renderMenu(m))}</View>
 
       <Text className="block" style={{ fontSize: rpx(11), color: '#C4C4CC', textAlign: 'center' }}>
-        {busy ? '同步中…' : '订阅数据默认存本机，登录后按微信账号备份到云端'}
+        订阅与设置全部存在云端，换设备登录即可原样看到
       </Text>
 
-      {/* 登录弹层：微信身份自动获取 → 一键验证手机号 */}
+      {/* 登录弹层：只用 wx.login 换取微信身份 */}
       <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
         <DialogContent style={{ borderRadius: rpx(20), background: '#fff' }}>
           <DialogHeader style={{ padding: `${rpx(14)} ${rpx(16)} ${rpx(6)}` }}>
@@ -402,18 +355,10 @@ const ProfilePage = () => {
           </DialogHeader>
           <View style={{ padding: `0 ${rpx(16)} ${rpx(16)}` }}>
             <Text className="block or-desc" style={{ marginBottom: rpx(12), lineHeight: rpx(17) }}>
-              退出后本机不再自动登录，需重新点「微信一键登录」。云端数据仍保存在服务端，重新登录后可用「从云端恢复」取回；当前本机共 {list.length} 条订阅。
+              退出后本机不再自动登录，需重新点「微信一键登录」。你的 {list.length} 条订阅仍在云端账号下，重新登录后原样可见。
             </Text>
-            <Button className="btn btn-block btn-ghost" onClick={() => confirmLogout(false)}>
-              退出并保留本机数据
-            </Button>
-            <Button
-              variant="outline"
-              className="btn btn-block"
-              style={{ marginTop: rpx(8) }}
-              onClick={() => confirmLogout(true)}
-            >
-              退出并清空本机数据
+            <Button className="btn btn-block btn-ghost" onClick={() => confirmLogout()}>
+              退出登录
             </Button>
             <Button
               variant="ghost"

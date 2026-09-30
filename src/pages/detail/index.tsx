@@ -48,7 +48,7 @@ const DetailPage = () => {
   const [loaded, setLoaded] = useState(false)
 
   useLoad(() => {
-    refresh()
+    void refresh()
     setLoaded(true)
   })
 

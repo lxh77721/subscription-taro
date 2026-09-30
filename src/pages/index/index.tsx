@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AppIcon } from '@/components/app-icon'
 import { useSubscriptionStore } from '@/stores/subscription'
-import { bootstrapSync } from '@/utils/sync'
+import { loadCloudData } from '@/utils/sync'
 import {
   type Category,
   type Preset,
@@ -31,13 +31,12 @@ type Filter = 'all' | 'soon' | Category
 const IndexPage = () => {
   const list = useSubscriptionStore((s) => s.list)
   const settings = useSubscriptionStore((s) => s.settings)
-  const refresh = useSubscriptionStore((s) => s.refresh)
   const [filter, setFilter] = useState<Filter>('all')
   const [chooseOpen, setChooseOpen] = useState(false)
 
   useDidShow(() => {
-    refresh()
-    void bootstrapSync()
+    // 数据以云端为准：每次回到首页都重新拉取，前端不保留本地缓存
+    void loadCloudData()
   })
 
   const activeList = list.filter((s) => s.status === 'active')

@@ -15,7 +15,7 @@ const RecyclePage = () => {
   const setStatus = useSubscriptionStore((s) => s.setStatus)
 
   useDidShow(() => {
-    refresh()
+    void refresh()
   })
 
   const trashed = list.filter((s) => s.status !== 'active')

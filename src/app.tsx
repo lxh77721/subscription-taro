@@ -3,13 +3,13 @@ import { useLaunch } from '@tarojs/taro';
 import { LucideTaroProvider } from 'lucide-react-taro';
 import '@/app.css';
 import { Toaster } from '@/components/ui/toast';
-import { bootstrapSync } from '@/utils/sync';
+import { loadCloudData } from '@/utils/sync';
 import { Preset } from './presets';
 
 const App = ({ children }: PropsWithChildren) => {
-  // 启动时静默登录（wx.login → openid），并按 openid 与云端同步，保证每个用户看到自己的数据
+  // 启动时静默登录（wx.login → openid），并从云端数据库加载该用户的订阅与设置
   useLaunch(() => {
-    void bootstrapSync();
+    void loadCloudData();
   });
 
   return (

@@ -39,6 +39,43 @@ export class SubscriptionRepository {
     return (data || []).map((r) => this.mapRow(r));
   }
 
+  /** 数据库写入行（字段为下划线命名） */
+  private toInsertRow(r: SubscriptionRow): Record<string, unknown> {
+    return {
+      id: r.id,
+      openid: r.openid,
+      name: r.name,
+      emoji: r.emoji,
+      amount: r.amount,
+      plan_type: r.planType,
+      custom_num: r.customNum,
+      custom_unit: r.customUnit,
+      start_date: r.startDate,
+      end_date: r.endDate,
+      remind_days: r.remindDays,
+      category: r.category,
+      domain: r.domain,
+      payment: r.payment,
+      status: r.status,
+      note: r.note,
+      created_at: r.createdAt,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  /** 新增或更新单条订阅（前端无本地缓存，每次改动直接落库） */
+  async upsertOne(openid: string, row: SubscriptionRow): Promise<SubscriptionRow> {
+    const db = this.db;
+    if (!db) {
+      const next = { ...row, updatedAt: new Date().toISOString() };
+      this.bucket(openid).set(row.id, next);
+      return next;
+    }
+    const { error } = await db.from(TABLE).upsert(this.toInsertRow(row), { onConflict: 'id' });
+    if (error) throw new Error(`写入订阅失败: ${error.message}`);
+    return row;
+  }
+
   /** 全量覆盖同步：新增/更新传入项，删除未包含的旧项 */
   async sync(openid: string, rows: SubscriptionRow[]): Promise<SubscriptionRow[]> {
     const db = this.db;
@@ -54,26 +91,7 @@ export class SubscriptionRepository {
     const staleIds = existing.map((r) => r.id).filter((id) => !incomingIds.has(id));
 
     if (rows.length) {
-      const payload = rows.map((r) => ({
-        id: r.id,
-        openid: r.openid,
-        name: r.name,
-        emoji: r.emoji,
-        amount: r.amount,
-        plan_type: r.planType,
-        custom_num: r.customNum,
-        custom_unit: r.customUnit,
-        start_date: r.startDate,
-        end_date: r.endDate,
-        remind_days: r.remindDays,
-        category: r.category,
-        domain: r.domain,
-        payment: r.payment,
-        status: r.status,
-        note: r.note,
-        created_at: r.createdAt,
-        updated_at: new Date().toISOString(),
-      }));
+      const payload = rows.map((r) => this.toInsertRow(r));
       const { error } = await db.from(TABLE).upsert(payload, { onConflict: 'id' });
       if (error) throw new Error(`写入订阅失败: ${error.message}`);
     }

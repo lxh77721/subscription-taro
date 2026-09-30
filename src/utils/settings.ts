@@ -1,5 +1,3 @@
-import Taro from '@tarojs/taro'
-
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type Lang = 'zh' | 'en'
 export type HomeSort = 'date' | 'amount' | 'name'
@@ -42,7 +40,7 @@ export interface Settings {
 /** 默认常用支付方式 */
 export const DEFAULT_PAYMENTS = ['微信支付', '支付宝', '银行卡']
 
-export const SETTINGS_KEY = 'app_settings'
+
 
 export const CURRENCIES: { key: string; label: Bi; symbol: string }[] = [
   { key: 'CNY', label: { zh: '人民币', en: 'Chinese Yuan' }, symbol: '¥' },
@@ -89,22 +87,6 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyAuthorized: false,
   notifyAuthorizedAt: 0,
   lastSyncAt: 0,
-}
-
-export function loadSettings(): Settings {
-  const stored = Taro.getStorageSync(SETTINGS_KEY) || {}
-  return { ...DEFAULT_SETTINGS, ...stored } as Settings
-}
-
-export function saveSettings(s: Settings): void {
-  Taro.setStorageSync(SETTINGS_KEY, s)
-}
-
-/** 更新部分设置项 */
-export function patchSettings(patch: Partial<Settings>): Settings {
-  const next = { ...loadSettings(), ...patch }
-  saveSettings(next)
-  return next
 }
 
 /** 取双语文本 */

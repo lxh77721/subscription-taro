@@ -52,23 +52,25 @@ const InfoPage = () => {
   const type: InfoType = (['privacy', 'help', 'about'].includes(router.params?.type as string)
     ? router.params.type
     : 'about') as InfoType
-  const replaceAll = useSubscriptionStore((s) => s.replaceAll)
+  const clearAll = useSubscriptionStore((s) => s.clearAll)
   const updateSettings = useSubscriptionStore((s) => s.updateSettings)
   const [text, setText] = useState('')
   const [sent, setSent] = useState(loadFeedback().length)
 
   const meta = TITLES[type]
 
-  const clearLocal = () => {
+  const clearCloud = () => {
     Taro.showModal({
-      title: '清除本机数据',
-      content: '将清空本机所有订阅记录，且无法撤销。确定继续？',
+      title: '清除云端数据',
+      content: '将删除云端账号下的所有订阅记录，且无法撤销。确定继续？',
       confirmText: '清除',
       confirmColor: '#EF4444',
       success: (res) => {
         if (!res.confirm) return
-        replaceAll([])
-        toast.success('本机数据已清除')
+        void clearAll().then((ok) => {
+          if (ok) toast.success('云端数据已清除')
+          else toast.warning('清除失败，请检查网络')
+        })
       },
     })
   }
@@ -130,7 +132,7 @@ const InfoPage = () => {
             <Button variant="outline" className="w-full h-11 rounded-2xl mb-3" onClick={revokeNotify}>
               <Text>关闭微信服务通知登记</Text>
             </Button>
-            <Button variant="outline" className="w-full h-11 rounded-2xl" onClick={clearLocal}>
+            <Button variant="outline" className="w-full h-11 rounded-2xl" onClick={clearCloud}>
               <Text style={{ color: '#EF4444' }}>清除本机数据</Text>
             </Button>
           </View>

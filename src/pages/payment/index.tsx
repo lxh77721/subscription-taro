@@ -17,7 +17,7 @@ const PaymentPage = () => {
   const [editing, setEditing] = useState<{ index: number; text: string } | null>(null)
 
   useDidShow(() => {
-    refresh()
+    void refresh()
   })
 
   const payments = settings.payments || []

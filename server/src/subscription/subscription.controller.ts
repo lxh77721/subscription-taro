@@ -13,7 +13,12 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { SubscriptionService } from './subscription.service';
-import { SyncDto, type SyncDto as TSync } from './subscription.dto';
+import {
+  SubscriptionSchema,
+  SyncDto,
+  type SubscriptionPayload as TSubscription,
+  type SyncDto as TSync,
+} from './subscription.dto';
 import { RateLimitGuard } from '../common/rate-limit.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { requireOpenid } from '../auth/current-user';
@@ -36,6 +41,17 @@ export class SubscriptionController {
     const openid = requireOpenid(req);
     const list = await this.subscriptionService.sync(openid, body.list);
     return { success: true, data: { count: list.length } };
+  }
+
+  /** 新增/更新单条订阅（限流：每 IP 每分钟 60 次） */
+  @Post()
+  @HttpCode(200)
+  @UseGuards(new RateLimitGuard(60, 60 * 1000))
+  @UsePipes(new ZodValidationPipe(SubscriptionSchema))
+  async upsert(@Req() req: Request, @Body() body: TSubscription) {
+    const openid = requireOpenid(req);
+    const data = await this.subscriptionService.upsert(openid, body);
+    return { success: true, data };
   }
 
   /** 查询订阅列表 */

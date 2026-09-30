@@ -1,13 +1,10 @@
 import { Picker, Text, View } from '@tarojs/components'
 import { useDidShow } from '@tarojs/taro'
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/toast'
 import { useSubscriptionStore } from '@/stores/subscription'
-import { seedDemoData } from '@/utils/subscription'
-import { syncSubscriptions } from '@/utils/api'
 import {
   BUDGET_OPTIONS,
   CURRENCIES,
@@ -20,23 +17,15 @@ const SettingsPage = () => {
   const settings = useSubscriptionStore((s) => s.settings)
   const refresh = useSubscriptionStore((s) => s.refresh)
   const updateSettings = useSubscriptionStore((s) => s.updateSettings)
-  const replaceAll = useSubscriptionStore((s) => s.replaceAll)
   const [budgetText, setBudgetText] = useState('')
 
   useDidShow(() => {
-    refresh()
+    void refresh()
     setBudgetText(String(useSubscriptionStore.getState().settings.monthlyBudget))
   })
 
   const currencyLabels = CURRENCIES.map((c) => `${c.label.zh} (${c.symbol})`)
   const sortLabels = SORT_OPTIONS.map((s) => s.label.zh)
-
-  /** 一键写入演示数据（体验用） */
-  const loadDemo = () => {
-    replaceAll(seedDemoData())
-    toast.success('演示数据已载入')
-    void syncSubscriptions(useSubscriptionStore.getState().list)
-  }
 
   const saveBudget = (v: number) => {
     updateSettings({ monthlyBudget: v })
@@ -150,20 +139,7 @@ const SettingsPage = () => {
           </View>
         </View>
 
-        {/* 演示数据（体验用，正式环境可删除本卡片） */}
-        <View className="card">
-          <View>
-            <Text className="block text-sm font-semibold text-slate-900 mb-2">体验数据</Text>
-            <Text className="block text-xs text-slate-500 mb-4 leading-5">
-              一键写入 30+ 主流订阅样例，用于快速预览列表、统计与提醒效果（会覆盖当前本地数据）。
-            </Text>
-            <Button variant="outline" className="w-full h-12 rounded-2xl" onClick={loadDemo}>
-              <Text>载入演示数据</Text>
-            </Button>
-          </View>
-        </View>
-
-        <Text className="block text-center text-xs text-slate-400 mt-2">订阅管家 v1.0.0 · 数据仅存储于本机</Text>
+        <Text className="block text-center text-xs text-slate-400 mt-2">订阅管家 v1.0.0 · 数据存储在云端</Text>
       </View>
     </View>
   )
