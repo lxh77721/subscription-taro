@@ -1,4 +1,4 @@
-import { Text, View } from '@tarojs/components'
+import { Picker, Text, View } from '@tarojs/components'
 import Taro, { useDidHide, useDidShow } from '@tarojs/taro'
 import { useEffect, useRef, useState } from 'react'
 import { Bell, RefreshCw } from 'lucide-react-taro'
@@ -44,6 +44,8 @@ const ReminderPage = () => {
   const updateSettings = useSubscriptionStore((s) => s.updateSettings)
 
   const [testing, setTesting] = useState(false)
+  /** 微信授权规则长说明是否展开 */
+  const [ruleOpen, setRuleOpen] = useState(false)
   /** 微信订阅消息授权状态：总开关是否打开、是否被「总是保持以上选择」记住 */
   const [authState, setAuthState] = useState<SubscribeSetting | null>(null)
   /** 服务端推送链路状态（null 表示还没取到 / 连不上） */
@@ -143,8 +145,8 @@ const ReminderPage = () => {
     })
   }
 
-  /** 开启微信服务通知：先唤起订阅消息授权，再把已开启提醒的订阅登记到服务端 */
-  const enableNotify = async () => {
+  /** 唤起授权并把已开启提醒的订阅登记到服务端（同时也是「应用新偏好」的重新登记入口） */
+  const registerNow = async (reapply = false) => {
     const r = await requestSubscribeReminder()
     if (!r.ok) {
       // 具体原因由 wxmsg 判定：点了取消 / 之前拒绝并被记住 / 总开关关闭 / 开发者工具不弹窗
@@ -176,14 +178,18 @@ const ReminderPage = () => {
       .filter((x): x is NonNullable<typeof x> => !!x)
     if (!items.length) {
       void loadMonitor()
-      toast.success('已开启服务通知')
+      toast.success(reapply ? '没有需要登记的订阅' : '已开启服务通知')
       return
     }
     try {
       const { code } = await Taro.login()
       const n = await registerReminders(items, code)
       void loadMonitor()
-      toast.success(n > 0 ? `已开启服务通知，登记 ${n} 条到期提醒` : '已开启服务通知，登记失败请重试')
+      if (reapply) {
+        toast.success(n > 0 ? `已按当前偏好重新登记 ${n} 条提醒` : '重新登记失败，请稍后重试')
+      } else {
+        toast.success(n > 0 ? `已开启服务通知，登记 ${n} 条到期提醒` : '已开启服务通知，登记失败请重试')
+      }
     } catch (e) {
       console.warn('[reminder] 登记失败', e)
       toast.warning('授权成功，但登记提醒失败，请稍后重试')
@@ -197,42 +203,40 @@ const ReminderPage = () => {
     ),
   ].sort((a, b) => a - b)
   const daysText = usedDays.length
-    ? `按每条订阅各自设定：提前 ${usedDays.join('/')} 天 · 早上 ${settings.remindTime}`
-    : `没有订阅开启提醒 · 早上 ${settings.remindTime}`
+    ? `按每条订阅各自设定：提前 ${usedDays.join('/')} 天`
+    : '没有订阅开启提醒'
 
-  const rules: { key: 'notifyBefore' | 'quietHours'; title: string; desc: string }[] = [
-    {
-      key: 'notifyBefore',
-      title: '扣费前提醒',
-      desc: settings.notifyBefore ? daysText : '已关闭，新增与重新登记不会再发提醒',
-    },
-    { key: 'quietHours', title: '免打扰时段', desc: '22:00 - 08:00 不推送通知' },
-  ]
+  /** 改了偏好后提示需要重新登记，避免用户以为已生效 */
+  const hintReapply = () =>
+    toast.info('已保存，点「按当前偏好重新登记」后才会按新设置发送')
 
   return (
     <View className="page-pad min-h-full w-full bg-[#F4F4F6]">
-      {/* 服务通知监控：授权 + 服务端 + 已登记提醒，实时反映能否收到通知 */}
-      <View className="card tight" style={{ display: 'flex', alignItems: 'center', gap: rpx(12) }}>
-        <View className="mr-ico lg dark">
-          <Bell size={rpx(20)} color="#ffffff" />
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text className="block" style={{ fontSize: rpx(13.5), fontWeight: '600' }}>
-            服务通知监控
-          </Text>
-          <Text className="block" style={{ fontSize: rpx(11.5), color: '#9CA3AF', marginTop: rpx(3) }}>
-            {monitor.hint}
-          </Text>
-        </View>
-        <Text className="tag" style={badgeStyle[monitor.level]}>
-          {monitor.label}
-        </Text>
-        <View style={{ marginLeft: rpx(2), padding: rpx(4) }} onClick={() => void loadMonitor()}>
-          <RefreshCw size={rpx(13)} color="#2563EB" />
-        </View>
+      {/* ① 推送状态：能不能收到通知，一眼看完 */}
+      <View className="sec-title">
+        <Text className="st-title">推送状态</Text>
+        <Text className="st-more">15 秒自动刷新</Text>
       </View>
-
       <View className="card tight">
+        <View style={{ display: 'flex', alignItems: 'center', gap: rpx(12), paddingBottom: rpx(10) }}>
+          <View className="mr-ico lg dark">
+            <Bell size={rpx(20)} color="#ffffff" />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text className="block" style={{ fontSize: rpx(13.5), fontWeight: '600' }}>
+              服务通知
+            </Text>
+            <Text className="block" style={{ fontSize: rpx(11.5), color: '#9CA3AF', marginTop: rpx(3) }}>
+              {monitor.hint}
+            </Text>
+          </View>
+          <Text className="tag" style={badgeStyle[monitor.level]}>
+            {monitor.label}
+          </Text>
+          <View style={{ marginLeft: rpx(2), padding: rpx(4) }} onClick={() => void loadMonitor()}>
+            <RefreshCw size={rpx(13)} color="#2563EB" />
+          </View>
+        </View>
         <View className="monitor-row">
           <Text className="block or-desc">微信授权</Text>
           <Text className="block" style={{ fontSize: rpx(12), color: '#111111' }}>
@@ -246,7 +250,7 @@ const ReminderPage = () => {
           </Text>
         </View>
         <View className="monitor-row">
-          <Text className="block or-desc">服务端状态</Text>
+          <Text className="block or-desc">服务端</Text>
           <Text className="block" style={{ fontSize: rpx(12), color: '#111111' }}>
             {status ? (status.wxReady && status.hasTemplate ? '凭证与模板已就绪' : '未配置凭证/模板') : '未连接'}
           </Text>
@@ -277,17 +281,11 @@ const ReminderPage = () => {
         </View>
       </View>
 
+      {/* ② 操作：开启授权 / 测试推送 */}
       <View className="card">
-        <Text className="block" style={{ fontSize: rpx(13), fontWeight: '600', marginBottom: rpx(4) }}>
-          微信服务通知
-        </Text>
-        <Text className="block" style={{ fontSize: rpx(11.5), color: '#9CA3AF', lineHeight: rpx(18) }}>
-          授权后，会在每条订阅设定的提前天数（如提前 1/3/7 天）通过微信「服务通知」推送。微信订阅消息为一次性授权，授权时勾选「总是保持以上选择」可长期接收。
-        </Text>
         <Button
           className="btn btn-primary btn-block"
-          style={{ marginTop: rpx(12) }}
-          onClick={monitor.level === 'bad' && authState ? () => void openNotifySetting() : () => void enableNotify()}
+          onClick={monitor.level === 'bad' && authState ? () => void openNotifySetting() : () => void registerNow()}
         >
           {authState?.mainSwitch === false || authState?.remembered === 'reject'
             ? '去设置开启服务通知'
@@ -310,12 +308,115 @@ const ReminderPage = () => {
         >
           管理微信授权设置
         </Text>
-        <Text className="block" style={{ fontSize: rpx(10.5), color: '#9CA3AF', lineHeight: rpx(16), marginTop: rpx(6) }}>
-          微信规定：勾了「总是保持以上选择」后就不会再弹授权窗，之后每次点上方按钮都会静默通过并补一条额度；若当时选的是拒绝，需要点「管理微信授权设置」改回允许。开发者工具不弹授权窗，请用真机预览测试。
+        <Text
+          className="block"
+          style={{ fontSize: rpx(11), color: '#2563EB', marginTop: rpx(6) }}
+          onClick={() => setRuleOpen(!ruleOpen)}
+        >
+          {ruleOpen ? '收起微信授权规则' : '微信授权规则说明'}
         </Text>
+        {ruleOpen && (
+          <Text
+            className="block"
+            style={{ fontSize: rpx(10.5), color: '#9CA3AF', lineHeight: rpx(16), marginTop: rpx(6) }}
+          >
+            微信订阅消息为一次性授权：一次授权只够推送一次。勾选「总是保持以上选择」后不会再弹窗，之后每次点上方按钮都会静默通过并补一条额度；若当时选的是拒绝，需要点「管理微信授权设置」改回允许。开发者工具不弹授权窗，请用真机预览测试。
+          </Text>
+        )}
       </View>
 
-      {/* 即将扣费：只看 7 天内 */}
+      {/* ③ 提醒偏好：时间 / 开关，改完要重新登记 */}
+      <View className="sec-title">
+        <Text className="st-title">提醒偏好</Text>
+        <Text className="st-more">{remindCount} 个订阅已开启</Text>
+      </View>
+      <View className="menu-card">
+        <View className="menu-row">
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text className="block" style={{ fontSize: rpx(13.5), fontWeight: '500' }}>
+              提醒时间
+            </Text>
+            <Text className="block" style={{ fontSize: rpx(11), color: '#9CA3AF', marginTop: rpx(2) }}>
+              扣费前第 N 天的这个时间推送
+              {settings.quietHours ? '（免打扰则顺延到 08:00）' : ''}
+            </Text>
+          </View>
+          <Picker
+            mode="time"
+            value={settings.remindTime}
+            onChange={(e) => {
+              updateSettings({ remindTime: e.detail.value })
+              hintReapply()
+            }}
+          >
+            <View
+              style={{
+                padding: `${rpx(6)} ${rpx(10)}`,
+                background: '#F4F4F6',
+                borderRadius: rpx(8),
+              }}
+            >
+              <Text className="block" style={{ fontSize: rpx(13), color: '#111111' }}>
+                {settings.remindTime}
+              </Text>
+            </View>
+          </Picker>
+        </View>
+
+        <View className="menu-row">
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text className="block" style={{ fontSize: rpx(13.5), fontWeight: '500' }}>
+              扣费前提醒
+            </Text>
+            <Text className="block" style={{ fontSize: rpx(11), color: '#9CA3AF', marginTop: rpx(2) }}>
+              {settings.notifyBefore ? daysText : '已关闭，新增与重新登记都不会再发提醒'}
+            </Text>
+          </View>
+          <Switch
+            checked={settings.notifyBefore}
+            onCheckedChange={(v) => {
+              updateSettings({ notifyBefore: v })
+              if (v) hintReapply()
+            }}
+          />
+        </View>
+
+        <View className="menu-row">
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text className="block" style={{ fontSize: rpx(13.5), fontWeight: '500' }}>
+              免打扰时段
+            </Text>
+            <Text className="block" style={{ fontSize: rpx(11), color: '#9CA3AF', marginTop: rpx(2) }}>
+              22:00 - 08:00 之间不推送，顺延到 08:00
+            </Text>
+          </View>
+          <Switch
+            checked={settings.quietHours}
+            onCheckedChange={(v) => {
+              updateSettings({ quietHours: v })
+              hintReapply()
+            }}
+          />
+        </View>
+      </View>
+
+      {notifyOn && remindCount > 0 && (
+        <Button
+          className="btn btn-outline btn-block"
+          style={{ marginTop: rpx(10) }}
+          onClick={() => void registerNow(true)}
+        >
+          按当前偏好重新登记
+        </Button>
+      )}
+      <Text
+        className="block"
+        style={{ fontSize: rpx(10.5), color: '#C4C4CC', lineHeight: rpx(16), marginTop: rpx(8) }}
+      >
+        提前天数在订阅里单独设置；改了偏好或订阅天数后，必须重新登记才会按新设置发送，已登记的提醒仍按原时间推送。
+      </Text>
+
+      {/* ④ 数据：7 天内即将扣费 */}
       <View className="sec-title">
         <Text className="st-title">7 天内即将扣费</Text>
         <Text className="st-more">
@@ -369,34 +470,10 @@ const ReminderPage = () => {
         })
       )}
 
-      {/* 提醒规则 */}
-      <View className="sec-title">
-        <Text className="st-title">提醒规则</Text>
-      </View>
-      <View className="menu-card">
-        {rules.map((r) => (
-          <View key={r.key} className="menu-row">
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text className="block" style={{ fontSize: rpx(13.5), fontWeight: '500' }}>
-                {r.title}
-              </Text>
-              <Text className="block" style={{ fontSize: rpx(11), color: '#9CA3AF', marginTop: rpx(2) }}>
-                {r.desc}
-              </Text>
-            </View>
-            <Switch checked={settings[r.key]} onCheckedChange={(v) => updateSettings({ [r.key]: v } as never)} />
-          </View>
-        ))}
-      </View>
-
-      <Button
-        className="btn btn-outline btn-block"
-        onClick={() => Taro.navigateTo({ url: '/pages/settings/index' })}
+      <Text
+        className="block"
+        style={{ fontSize: rpx(10.5), color: '#C4C4CC', textAlign: 'center', marginTop: rpx(12) }}
       >
-        提醒时间与方式
-      </Button>
-
-      <Text className="block" style={{ fontSize: rpx(10.5), color: '#C4C4CC', textAlign: 'center', marginTop: rpx(8) }}>
         {remindCount} 个订阅已开启扣费提醒
         {usedDays.length ? ` · 提前 ${usedDays.join('/')} 天` : ''}
       </Text>
