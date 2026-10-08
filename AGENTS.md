@@ -516,3 +516,15 @@ useEffect(() => { setIsWeapp(Taro.getEnv() === Taro.ENV_TYPE.WEAPP) }, [])
   </View>
 )}
 ```
+
+## 部署环境变量（微信凭据）
+
+**关键**：`server/.env` 已被 `.gitignore` 忽略，不会打包进部署产物；`wx.config.ts` 已改为回退到 `coze_workload_identity` 平台环境变量注入（复用 `supabase-client.ts` 的 `loadEnv()`）。
+
+因此上线后微信登录 / 订阅通知要能工作，必须在**平台的项目环境变量**中配置以下值（等同于本地 `server/.env` 的三个微信字段）：
+
+- `WX_APPID`（与 `project.config.json` 的 appid 一致，如 `wxa28b82cce183c9e9`）
+- `WX_APPSECRET`
+- `WX_TMPL_ID`
+
+三者齐备后接口层面 `WX_READY=true`，否则部署环境日志会出现 `[reminder] 订阅消息未配置凭证/模板，将跳过真实发送`，登录接口报 `服务端未配置微信凭证`。数据库能在线工作正因走了同类平台注入；微信曾缺失是历史根因，现已补齐注入路径。

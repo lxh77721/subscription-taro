@@ -9,9 +9,14 @@
  */
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { loadEnv } from '../storage/database/supabase-client';
 
 // 加载 server/.env（dist/src 两种运行路径都解析到 server/ 目录）
 dotenv.config({ path: path.resolve(__dirname, '../../.env'), override: false });
+// 部署环境优先通过平台注入的目标环境变量（coze_workload_identity）获取微信配置，
+// 因为 server/.env 仅存在于本地且已被 .gitignore 排除、不会打包进部署产物。
+// WX_CONFIG 是模块顶层常量，必须在它求值前完成注入。
+loadEnv();
 
 export const WX_CONFIG = {
   appid: process.env.WX_APPID || '',
