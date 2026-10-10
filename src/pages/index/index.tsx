@@ -212,7 +212,7 @@ const IndexPage = () => {
       <View
         className="fab"
         style={
-          process.env.TARO_ENV === 'h5'
+          Taro.getEnv() === Taro.ENV_TYPE.WEB
             ? { bottom: 'calc(50px + env(safe-area-inset-bottom) + 14px)' }
             : undefined
         }

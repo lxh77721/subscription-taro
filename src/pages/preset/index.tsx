@@ -1,4 +1,5 @@
-import { Input, ScrollView, Text, View } from '@tarojs/components'
+import { ScrollView, Text, View } from '@tarojs/components'
+import { Input } from '@/components/ui/input'
 import Taro, { useRouter } from '@tarojs/taro'
 import { useMemo, useState } from 'react'
 import { AppIcon } from '@/components/app-icon'
@@ -89,7 +90,7 @@ const PresetPage = () => {
         <View className="p-search">
           <Text className="p-search-icon">🔍</Text>
           <Input
-            className="p-search-input"
+            className="p-search-input h-auto border-none bg-transparent p-0 shadow-none rounded-none"
             placeholder="搜索服务，如 Netflix、爱奇艺、Keep"
             placeholderClass="p-search-ph"
             value={keyword}
