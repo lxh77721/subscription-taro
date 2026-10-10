@@ -1,0 +1,13 @@
+{
+  "desc": "索引规则：仅公开内容页 pages/guide/index 允许被微信收录；其余页面均需登录后才有个人订阅数据，爬虫看到的是空态（官方规则：爬虫所见与真实用户不一致的页面不会进入索引），因此默认全部关闭收录。详见 https://developers.weixin.qq.com/miniprogram/dev/reference/configuration/sitemap.html",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "pages/guide/index"
+    },
+    {
+      "action": "disallow",
+      "page": "*"
+    }
+  ]
+}

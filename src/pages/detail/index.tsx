@@ -1,5 +1,5 @@
 import { Text, View } from '@tarojs/components'
-import Taro, { useLoad, useRouter } from '@tarojs/taro'
+import Taro, { useLoad, useRouter, useShareAppMessage, useShareTimeline } from '@tarojs/taro'
 import { useState } from 'react'
 import { Clock } from 'lucide-react-taro'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,7 @@ import {
   periodProgress,
 } from '@/utils/subscription'
 import { rpx } from '@/utils/rpx'
+import { SHARE_PATH, SHARE_TITLE } from '@/utils/share'
 
 const DetailPage = () => {
   const router = useRouter()
@@ -51,6 +52,10 @@ const DetailPage = () => {
     void refresh()
     setLoaded(true)
   })
+
+  // 分享：详情页需登录后才有个人数据，不适合作为分享落地页，统一指向公开内容页
+  useShareAppMessage(() => ({ title: SHARE_TITLE, path: SHARE_PATH }))
+  useShareTimeline(() => ({ title: SHARE_TITLE, query: '' }))
 
   const onDelete = () => {
     remove(id)

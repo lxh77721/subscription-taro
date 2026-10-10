@@ -9,7 +9,7 @@ import { AppIcon } from '@/components/app-icon'
 import { useSubscriptionStore } from '@/stores/subscription'
 import { getSubscribeSetting, openSubscribeSetting, requestSubscribeReminder } from '@/utils/wxmsg'
 import type { SubscribeSetting } from '@/utils/wxmsg'
-import { getSubscribeTemplateId } from '@/utils/ad.js'
+import { getSubscribeTemplateId } from '@/utils/subscribe-template.js'
 import {
   computeRemindAt,
   fetchReminderStatus,

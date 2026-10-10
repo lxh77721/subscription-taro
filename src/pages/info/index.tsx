@@ -21,7 +21,7 @@ const TITLES: Record<InfoType, { title: string; sub: string }> = {
 const FAQ: { q: string; a: string }[] = [
   {
     q: '订阅数据存在哪里？',
-    a: '默认保存在本机（小程序本地存储）。登录后会自动按微信账号备份到云端，换手机可在「我的 - 从云端恢复」取回，不同账号之间数据完全隔离。',
+    a: '统一加密存储在受控的云端，并以微信账号（openid）为单位严格隔离，仅你本人可访问。本机不保存业务数据，换手机登录同一微信账号即可原样取回。',
   },
   {
     q: '到期提醒怎么收到的？',
@@ -33,7 +33,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: '如何彻底删除数据？',
-    a: '在「隐私与安全」中点击「清除本机数据」，会清空本机所有订阅记录；云端备份可通过再次登录同步为空。',
+    a: '在「隐私与安全」中点击「清除云端数据」，会删除该微信账号下的全部订阅记录，且无法撤销；本机不保存业务数据，无需额外清理。',
   },
 ]
 
@@ -127,13 +127,13 @@ const InfoPage = () => {
           <View className="card">
             <Text className="block text-sm font-semibold text-slate-900 mb-2">数据管理</Text>
             <Text className="block or-desc" style={{ marginBottom: rpx(10) }}>
-              订阅明细默认只存本机；登录后按微信账号（openid）隔离备份到云端，其他用户无法访问。
+              订阅、分类与偏好设置全部存储在云端，并按微信账号（openid）严格隔离，其他用户无法访问；本机不保存业务数据。
             </Text>
             <Button variant="outline" className="w-full h-11 rounded-2xl mb-3" onClick={revokeNotify}>
               <Text>关闭微信服务通知登记</Text>
             </Button>
             <Button variant="outline" className="w-full h-11 rounded-2xl" onClick={clearCloud}>
-              <Text style={{ color: '#EF4444' }}>清除本机数据</Text>
+              <Text style={{ color: '#EF4444' }}>清除云端数据</Text>
             </Button>
           </View>
         </>
@@ -226,6 +226,20 @@ const InfoPage = () => {
           </View>
 
           <View className="card">
+            <Text className="block text-sm font-semibold text-slate-900 mb-2">权利声明</Text>
+            <Text className="block" style={{ fontSize: rpx(12), color: '#6B7280', lineHeight: rpx(19) }}>
+              本小程序为个人订阅记账与到期提醒工具，与任何第三方服务商均无关联、合作或授权关系，也不提供任何代扣、代付、代订阅服务。您添加的服务名称仅用于标识您自己的订阅项，相关名称与商标归各自权利人所有。
+            </Text>
+          </View>
+
+          <View className="card">
+            <Button
+              variant="outline"
+              className="w-full h-11 rounded-2xl mb-3"
+              onClick={() => Taro.navigateTo({ url: '/pages/guide/index' })}
+            >
+              <Text>主流订阅价格参考</Text>
+            </Button>
             <Button
               variant="outline"
               className="w-full h-11 rounded-2xl"
@@ -236,7 +250,7 @@ const InfoPage = () => {
           </View>
 
           <Text className="block" style={{ fontSize: rpx(11), color: '#C4C4CC', textAlign: 'center' }}>
-            订阅管家 · 数据仅存储于本机与你的云端账号
+            订阅管家 · 数据按微信账号加密存储于云端
           </Text>
         </>
       )}

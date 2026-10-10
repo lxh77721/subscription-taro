@@ -25,7 +25,7 @@ export interface Settings {
   remindTime: string
   /** 免打扰时段（22:00 - 08:00） */
   quietHours: boolean
-  /** 用户自定义分类（在 7 个内置分类之外新增） */
+  /** 用户自定义分类（在 9 个内置分类之外新增） */
   customCategories: CategoryDef[]
   /** 常用支付方式（新增订阅时可快选） */
   payments: string[]

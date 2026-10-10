@@ -1,0 +1,270 @@
+/* 「选择服务」页专属样式：深色渐变 hero + 悬浮搜索 + 吸顶分类 + 白卡网格 */
+/* 约定：全部用 WXSS rpx（小程序原生 / H5 由 pxtransform 转 rem），不写内联 rpx() */
+
+.p-page {
+  min-height: 100%;
+  width: 100%;
+  background: #f4f4f6;
+}
+
+/* 顶部渐变区（与首页黑色汇总卡同风格） */
+.p-hero {
+  background: linear-gradient(165deg, #1b1b22 0%, #272731 52%, #34343f 100%);
+  padding: 44rpx 32rpx 132rpx;
+}
+.p-hero-eyebrow {
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #f7c948;
+  letter-spacing: 6rpx;
+}
+.p-hero-title {
+  margin-top: 12rpx;
+  font-size: 44rpx;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+}
+.p-hero-sub {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.5;
+}
+
+/* 悬浮搜索胶囊 */
+.p-search {
+  margin-top: 36rpx;
+  height: 92rpx;
+  border-radius: 1998rpx;
+  background: #ffffff;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 32rpx;
+  gap: 16rpx;
+  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.26);
+}
+.p-search-icon {
+  font-size: 30rpx;
+  color: #9ca3af;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+/* 约束 Taro H5 的 input host（taro-input-core）与内层 input：
+   不写内联尺寸，让 CSS 统一说了算（rpx 双端一致） */
+.p-search taro-input,
+.p-search taro-input-core,
+.p-search .p-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 92rpx;
+  font-size: 28rpx;
+  line-height: 92rpx;
+}
+.p-search .p-search-input input {
+  height: 92rpx;
+  font-size: 28rpx;
+  line-height: 92rpx;
+}
+.p-search .p-search-ph {
+  font-size: 28rpx;
+  color: #9ca3af;
+}
+
+/* 吸顶分类 tab：负 margin 上移压住 hero 底部 */
+.p-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: -76rpx 0 0;
+  padding: 20rpx 24rpx 16rpx;
+  background: rgba(244, 244, 246, 0.97);
+}
+.p-tab-row {
+  display: flex;
+  flex-direction: row;
+  gap: 14rpx;
+  padding-right: 8rpx;
+}
+.p-tab {
+  flex: 0 0 auto;
+  height: 68rpx;
+  padding: 0 28rpx;
+  border-radius: 1998rpx;
+  background: #ffffff;
+  color: #4b5563;
+  font-size: 25rpx;
+  font-weight: 600;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12rpx;
+  white-space: nowrap;
+  box-shadow: 0 2rpx 6rpx rgba(17, 17, 17, 0.05);
+}
+.p-tab.on {
+  background: #111111;
+  color: #ffffff;
+}
+.p-badge {
+  border-radius: 1998rpx;
+  padding: 2rpx 14rpx;
+  font-size: 20rpx;
+  font-weight: 700;
+  background: rgba(17, 17, 17, 0.06);
+  color: #9ca3af;
+  line-height: 1.5;
+}
+.p-tab.on .p-badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/* 分组标题：分类色圆点 + 标题 + 数量 */
+.p-body {
+  padding: 0 24rpx 40rpx;
+}
+.p-sec {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 34rpx 12rpx 20rpx;
+}
+.p-sec-dot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 8rpx;
+  margin-right: 14rpx;
+  flex: 0 0 auto;
+}
+.p-sec-title {
+  font-size: 31rpx;
+  font-weight: 800;
+  color: #111111;
+  line-height: 1.2;
+}
+.p-sec-count {
+  margin-left: auto;
+  font-size: 22rpx;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+/* 服务网格白卡 */
+.p-grid {
+  background: #ffffff;
+  border-radius: 32rpx;
+  box-shadow: 0 2rpx 4rpx rgba(17, 17, 17, 0.04), 0 0 0 2rpx rgba(0, 0, 0, 0.05);
+  padding: 26rpx 20rpx 30rpx;
+}
+.p-svc {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14rpx;
+  padding: 12rpx 0;
+}
+.p-svc-name {
+  font-size: 21rpx;
+  color: #4b5563;
+  text-align: center;
+  line-height: 1.35;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 空态 */
+.p-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 90rpx 0 60rpx;
+}
+.p-empty-icon {
+  font-size: 72rpx;
+  line-height: 1;
+}
+.p-empty-title {
+  margin-top: 24rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #374151;
+}
+.p-empty-sub {
+  margin-top: 10rpx;
+  font-size: 23rpx;
+  color: #9ca3af;
+}
+.p-empty-btn {
+  margin-top: 32rpx;
+  height: 76rpx;
+  padding: 0 48rpx;
+  border-radius: 1998rpx;
+  background: #111111;
+  color: #ffffff;
+  font-size: 26rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+
+/* 自定义订阅入口：黑色渐变卡 */
+.p-custom {
+  margin-top: 32rpx;
+  background: linear-gradient(135deg, #1b1b22 0%, #33333e 100%);
+  border-radius: 32rpx;
+  padding: 34rpx 32rpx;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 24rpx;
+  box-shadow: 0 12rpx 28rpx rgba(17, 17, 17, 0.18);
+}
+.p-custom-plus {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.p-custom-plus-sign {
+  font-size: 44rpx;
+  font-weight: 300;
+  color: #ffffff;
+  line-height: 1;
+}
+.p-custom-text {
+  flex: 1;
+  min-width: 0;
+}
+.p-custom-title {
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #ffffff;
+}
+.p-custom-sub {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.55);
+}
+.p-custom-arrow {
+  font-size: 40rpx;
+  color: rgba(255, 255, 255, 0.4);
+  flex: 0 0 auto;
+}
+
+/* 页脚 */
+.p-foot {
+  text-align: center;
+  padding: 24rpx 0 4rpx;
+}
+.p-foot-text {
+  font-size: 22rpx;
+  color: #c4c4cc;
+}

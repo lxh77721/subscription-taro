@@ -140,18 +140,29 @@ export default defineConfig<'vite'>(async (merge, _env) => {
       type: 'vite',
       vitePlugins: [
         {
-          // 品牌图标：微信小程序 <image src> 拿到超长 base64 会告警且影响渲染性能
-          // （实测单个 src 超过 2 万字符，微信阈值 2046），所以不走资源 import，
-          // 而是把 PNG 原样拷到产物根目录，运行时用 /appicons/xxx.png 引用。
+          // 产物静态文件同步：
+          // 1) 品牌图标：微信小程序 <image src> 拿到超长 base64 会告警且影响渲染性能
+          //    （实测单个 src 超过 2 万字符，微信阈值 2046），所以不走资源 import，
+          //    而是把 PNG 原样拷到产物根目录，运行时用 /appicons/xxx.png 引用。
+          // 2) sitemap.json：微信要求其与 app.json 同级（默认 sitemapLocation 为 sitemap.json）。
           // Taro 的 copy 配置在 vite 编译链下不生效，这里在每次构建结束时同步一次。
-          name: 'copy-appicons-plugin',
+          name: 'copy-weapp-static-plugin',
           closeBundle() {
+            const outDir = path.resolve(__dirname, '..', outputRoot);
+            fs.mkdirSync(outDir, { recursive: true });
+            // 品牌图标
             const from = path.resolve(__dirname, '..', 'src/assets/appicons');
-            if (!fs.existsSync(from)) return;
-            const to = path.resolve(__dirname, '..', outputRoot, 'appicons');
-            fs.mkdirSync(to, { recursive: true });
-            for (const file of fs.readdirSync(from)) {
-              fs.copyFileSync(path.join(from, file), path.join(to, file));
+            if (fs.existsSync(from)) {
+              const to = path.join(outDir, 'appicons');
+              fs.mkdirSync(to, { recursive: true });
+              for (const file of fs.readdirSync(from)) {
+                fs.copyFileSync(path.join(from, file), path.join(to, file));
+              }
+            }
+            // sitemap.json
+            const sitemap = path.resolve(__dirname, '..', 'src/sitemap.json');
+            if (fs.existsSync(sitemap)) {
+              fs.copyFileSync(sitemap, path.join(outDir, 'sitemap.json'));
             }
           },
         },
@@ -281,6 +292,22 @@ export default defineConfig<'vite'>(async (merge, _env) => {
   };
 
   process.env.BROWSERSLIST_ENV = process.env.NODE_ENV;
+
+  // 构建期兜底提醒：小程序端没有同源概念，PROJECT_DOMAIN 为空时接口会退化成 /api/... 相对路径，
+  // 在开发者工具外（预览码/真机）必定请求失败，是上线最常见的「接口全挂」原因。
+  if (
+    !process.env.PROJECT_DOMAIN &&
+    !process.env.COZE_PROJECT_DOMAIN_DEFAULT &&
+    process.env.TARO_ENV &&
+    process.env.TARO_ENV !== 'h5'
+  ) {
+    console.warn(
+      '[构建提醒] 未检测到 PROJECT_DOMAIN：当前构建的 ' +
+        process.env.TARO_ENV +
+        ' 端接口将退化为 /api/... 相对路径，预览码与真机都会请求失败。' +
+        '请在 .env.local 配置 PROJECT_DOMAIN，并在小程序后台「开发管理 - 服务器域名」添加 request 合法域名。',
+    );
+  }
 
   if (process.env.NODE_ENV === 'development') {
     // 本地开发构建配置（不混淆压缩）

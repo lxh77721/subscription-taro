@@ -3,7 +3,7 @@
  * 仅在微信小程序环境且配置了模板 ID 时才会真正唤起授权；其他环境直接返回未授权并给出原因。
  */
 import Taro from '@tarojs/taro'
-import { getSubscribeTemplateId } from './ad.js'
+import { getSubscribeTemplateId } from './subscribe-template.js'
 
 export interface SubscribeResult {
   /** 用户是否同意 */

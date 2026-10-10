@@ -1,17 +1,14 @@
 import { ScrollView, Text, View } from '@tarojs/components'
-import Taro, { useDidShow } from '@tarojs/taro'
+import Taro, { useDidShow, useShareAppMessage, useShareTimeline } from '@tarojs/taro'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AppIcon } from '@/components/app-icon'
 import { useSubscriptionStore } from '@/stores/subscription'
 import { loadCloudData } from '@/utils/sync'
 import {
   type Category,
-  type Preset,
   type Subscription,
   allCategories,
-  presetByCategory,
   presetIconUrl,
   formatMoney,
   monthCost,
@@ -25,6 +22,7 @@ import {
   prettyDate,
 } from '@/utils/subscription'
 import { rpx } from '@/utils/rpx'
+import { SHARE_PATH, SHARE_TITLE } from '@/utils/share'
 
 type Filter = 'all' | 'soon' | Category
 
@@ -32,12 +30,16 @@ const IndexPage = () => {
   const list = useSubscriptionStore((s) => s.list)
   const settings = useSubscriptionStore((s) => s.settings)
   const [filter, setFilter] = useState<Filter>('all')
-  const [chooseOpen, setChooseOpen] = useState(false)
 
   useDidShow(() => {
     // 数据以云端为准：每次回到首页都重新拉取，前端不保留本地缓存
     void loadCloudData()
   })
+
+  // 转发给好友
+  useShareAppMessage(() => ({ title: SHARE_TITLE, path: SHARE_PATH }))
+  // 分享到朋友圈
+  useShareTimeline(() => ({ title: SHARE_TITLE, query: '' }))
 
   const activeList = list.filter((s) => s.status === 'active')
   const monthly = monthCost(list)
@@ -61,21 +63,8 @@ const IndexPage = () => {
     return [...arr].sort((a, b) => (nextChargeDate(a) || '9999').localeCompare(nextChargeDate(b) || '9999'))
   }
 
-  const goToEdit = (preset?: Preset) => {
-    if (preset) {
-      Taro.setStorageSync('pending_preset', {
-        name: preset.name,
-        emoji: preset.emoji,
-        domain: preset.domain || '',
-        amount: String(preset.amount),
-        category: preset.category,
-        plan: preset.plan || 'month',
-      })
-    } else {
-      Taro.removeStorageSync('pending_preset')
-    }
-    Taro.navigateTo({ url: '/pages/edit/index' })
-  }
+  /** 新增订阅：跳到「选择服务」独立页（服务库已 100+ 项，弹窗放不下） */
+  const goToPreset = () => Taro.navigateTo({ url: '/pages/preset/index' })
 
   const goDetail = (id: string) => Taro.navigateTo({ url: `/pages/detail/index?id=${id}` })
 
@@ -217,49 +206,10 @@ const IndexPage = () => {
         </View>
       </View>
 
-      {/* 悬浮新增 */}
-      <View className="fab" onClick={() => setChooseOpen(true)}>
+      {/* 悬浮新增：跳「选择服务」页 */}
+      <View className="fab" onClick={goToPreset}>
         <Text style={{ fontSize: rpx(26), fontWeight: '300', lineHeight: '1' }}>+</Text>
       </View>
-
-      {/* 选择服务 */}
-      <Dialog open={chooseOpen} onOpenChange={setChooseOpen}>
-        <DialogContent style={{ borderRadius: rpx(20), background: '#fff', maxHeight: '75vh' }}>
-          <DialogHeader style={{ padding: `${rpx(14)} ${rpx(16)} ${rpx(8)}` }}>
-            <DialogTitle style={{ fontSize: rpx(16), fontWeight: '700' }}>选择服务</DialogTitle>
-          </DialogHeader>
-          <View style={{ padding: `0 ${rpx(16)} ${rpx(16)}`, maxHeight: '56vh', overflowY: 'auto' }}>
-            {presetByCategory().map((g) => (
-              <View key={g.category} style={{ marginBottom: rpx(14) }}>
-                <Text className="block form-label">{g.label}</Text>
-                <View className="svc-grid">
-                  {g.items.map((p) => (
-                    <View key={p.name} className="svc-item" onClick={() => { setChooseOpen(false); goToEdit(p) }}>
-                      <AppIcon
-                        name={p.name}
-                        category={p.category}
-                        emoji={p.emoji}
-                        url={presetIconUrl(p.domain)}
-                        size={44}
-                      />
-                      <Text className="block si-name">{p.name}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ))}
-            <View className="svc-item" onClick={() => { setChooseOpen(false); goToEdit() }}>
-              <View
-                className="bico"
-                style={{ width: rpx(44), height: rpx(44), background: '#C4C4CC', color: '#fff' }}
-              >
-                <Text style={{ fontSize: rpx(20), lineHeight: '1' }}>+</Text>
-              </View>
-              <Text className="block si-name">自定义</Text>
-            </View>
-          </View>
-        </DialogContent>
-      </Dialog>
     </View>
   )
 }

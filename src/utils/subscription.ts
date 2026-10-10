@@ -5,8 +5,17 @@ import { APP_ICONS } from './appicons'
 export type PlanType = 'month' | 'quarter' | 'year' | 'oneTime' | 'custom' | 'free'
 /** 自定义周期单位 */
 export type CustomUnit = 'day' | 'week' | 'month' | 'year'
-/** 内置订阅分类（7 大类，覆盖市面上主流订阅） */
-export type BuiltinCategory = 'video' | 'ai' | 'cloud' | 'shopping' | 'reading' | 'game' | 'security'
+/** 内置订阅分类（9 大类，覆盖市面上主流订阅） */
+export type BuiltinCategory =
+  | 'video'
+  | 'ai'
+  | 'cloud'
+  | 'shopping'
+  | 'life'
+  | 'reading'
+  | 'game'
+  | 'health'
+  | 'security'
 /** 订阅分类：内置分类 + 用户自定义分类（自定义 key 形如 custom_xxx） */
 export type Category = BuiltinCategory | (string & {})
 /** 订阅状态 */
@@ -54,22 +63,24 @@ export const CATEGORIES: CategoryDef[] = [
   { value: 'video', label: '影音娱乐', color: '#938BFF' },
   { value: 'ai', label: 'AI 与效率', color: '#6366F1' },
   { value: 'cloud', label: '云存储', color: '#5E9AFF' },
-  { value: 'shopping', label: '电商生活', color: '#F59E0B' },
+  { value: 'shopping', label: '电商购物', color: '#F59E0B' },
+  { value: 'life', label: '生活服务', color: '#14B8A6' },
   { value: 'reading', label: '阅读学习', color: '#22C55E' },
   { value: 'game', label: '游戏娱乐', color: '#0EA5E9' },
+  { value: 'health', label: '健康运动', color: '#F43F5E' },
   { value: 'security', label: '工具安全', color: '#EC4899' },
 ]
 
-/** 自定义分类备选色（新增分类时依次取用） */
+/** 自定义分类备选色（新增分类时依次取用，避免与内置分类撞色） */
 export const CATEGORY_COLOR_POOL = [
   '#8B5CF6',
-  '#14B8A6',
   '#F97316',
   '#3B82F6',
   '#E11D48',
   '#84CC16',
   '#A855F7',
   '#0F766E',
+  '#FACC15',
 ]
 
 export const CATEGORY_COLORS: Record<string, string> = CATEGORIES.reduce(
@@ -193,52 +204,210 @@ export interface Preset {
 
 /** 取各 app 官方品牌图标（本地打包资源），未知域名为空 */
 export function presetIconUrl(domain?: string): string {
-  return (domain && APP_ICONS[domain]) || ''
+  const icon = (domain && APP_ICONS[domain]) || ''
+  if (!icon) return ''
+  // 小程序端：构建插件把图标拷到产物根目录 appicons/；H5 端：vite 以 src 为根提供静态服务（/assets/appicons/）
+  return TARO_ENV === 'h5' ? icon.replace(/^\/appicons\//, '/assets/appicons/') : icon
 }
 
-/** 预置服务库：覆盖影音、音乐、AI、效率、云盘、电商、阅读、游戏、工具等主流订阅 */
+/**
+ * 预置服务库：覆盖影音娱乐、AI 与效率、云存储、电商购物、生活服务、
+ * 阅读学习、游戏娱乐、健康运动、工具安全等 9 大类主流订阅（国内外共 120+ 项）。
+ *
+ * 说明：
+ * - amount 为常见档位参考价（人民币，按 plan 周期计；标注 year 的为年付价），
+ *   仅用于新增订阅时快速带出，用户可随时修改。
+ * - domain 用于取本地打包的官方图标（src/assets/appicons）。若该域名暂无图标，
+ *   <AppIcon> 会自动回退为「主题色块 + 首字母」，不影响使用；
+ *   后续把 PNG 放进 src/assets/appicons/ 并在 appicons.ts 登记即可自动生效。
+ */
 export const PRESETS: Preset[] = [
-  // 影音娱乐
+  /* ── 影音娱乐 ── */
   { name: 'Netflix', emoji: '🎬', amount: 68, category: 'video', domain: 'netflix.com' },
-  { name: 'Spotify', emoji: '🎧', amount: 18, category: 'video', domain: 'spotify.com' },
+  { name: 'Disney+', emoji: '🏰', amount: 48, category: 'video', domain: 'disneyplus.com' },
+  { name: 'HBO Max', emoji: '🎭', amount: 68, category: 'video', domain: 'max.com' },
+  { name: 'Apple TV+', emoji: '📺', amount: 35, category: 'video', domain: 'apple.com' },
+  { name: 'Amazon Prime Video', emoji: '🎞️', amount: 48, category: 'video', domain: 'primevideo.com' },
   { name: 'YouTube Premium', emoji: '▶️', amount: 38, category: 'video', domain: 'youtube.com' },
+  { name: 'Twitch Turbo', emoji: '🟣', amount: 45, category: 'video', domain: 'twitch.tv' },
+  { name: 'Spotify', emoji: '🎧', amount: 18, category: 'video', domain: 'spotify.com' },
   { name: 'Apple Music', emoji: '🎵', amount: 11, category: 'video', domain: 'apple.com' },
+  { name: 'Tidal', emoji: '🌊', amount: 70, category: 'video', domain: 'tidal.com' },
+  { name: 'SoundCloud Go+', emoji: '☁️', amount: 45, category: 'video', domain: 'soundcloud.com' },
+  { name: 'KKBOX', emoji: '🎙️', amount: 30, category: 'video', domain: 'kkbox.com' },
   { name: '网易云音乐', emoji: '🎼', amount: 12, category: 'video', domain: 'music.163.com' },
   { name: 'QQ音乐', emoji: '🎶', amount: 15, category: 'video', domain: 'y.qq.com' },
   { name: '酷狗音乐', emoji: '🎻', amount: 15, category: 'video', domain: 'kugou.com' },
+  { name: '汽水音乐', emoji: '🥤', amount: 12, category: 'video', domain: 'qishui.com' },
+  { name: '咪咕音乐', emoji: '🎤', amount: 10, category: 'video', domain: 'migu.cn' },
   { name: '爱奇艺', emoji: '📺', amount: 25, category: 'video', domain: 'iqiyi.com' },
-  { name: '优酷', emoji: '📹', amount: 20, category: 'video', domain: 'youku.com' },
   { name: '腾讯视频', emoji: '🐧', amount: 25, category: 'video', domain: 'v.qq.com' },
-  { name: '哔哩哔哩', emoji: '📢', amount: 15, category: 'video', domain: 'bilibili.com' },
+  { name: '优酷', emoji: '📹', amount: 20, category: 'video', domain: 'youku.com' },
+  { name: '哔哩哔哩大会员', emoji: '📢', amount: 15, category: 'video', domain: 'bilibili.com' },
   { name: '芒果TV', emoji: '🥭', amount: 22, category: 'video', domain: 'mgtv.com' },
-  // AI 与效率
+  { name: '咪咕视频', emoji: '🎥', amount: 15, category: 'video', domain: 'migu.cn' },
+  { name: '搜狐视频', emoji: '🎦', amount: 18, category: 'video', domain: 'sohu.com' },
+
+  /* ── AI 与效率 ── */
   { name: 'ChatGPT Plus', emoji: '🤖', amount: 145, category: 'ai', domain: 'chatgpt.com' },
-  { name: 'Claude Pro', emoji: '🧠', amount: 150, category: 'ai', domain: 'claude.ai' },
+  { name: 'ChatGPT Pro', emoji: '🧠', amount: 1400, category: 'ai', domain: 'chatgpt.com' },
+  { name: 'Claude Pro', emoji: '🎯', amount: 150, category: 'ai', domain: 'claude.ai' },
+  { name: 'Gemini Advanced', emoji: '✨', amount: 145, category: 'ai', domain: 'google.com' },
   { name: 'GitHub Copilot', emoji: '👨‍💻', amount: 72, category: 'ai', domain: 'github.com' },
+  { name: 'Cursor Pro', emoji: '🖱️', amount: 145, category: 'ai', domain: 'cursor.com' },
+  { name: 'Midjourney', emoji: '🎨', amount: 70, category: 'ai', domain: 'midjourney.com' },
+  { name: 'Suno', emoji: '🎼', amount: 70, category: 'ai', domain: 'suno.com' },
+  { name: 'Perplexity Pro', emoji: '🔍', amount: 145, category: 'ai', domain: 'perplexity.ai' },
+  { name: 'Poe', emoji: '💬', amount: 145, category: 'ai', domain: 'poe.com' },
+  { name: '文心一言会员', emoji: '🅰️', amount: 39, category: 'ai', domain: 'baidu.com' },
+  { name: '豆包', emoji: '🫘', amount: 30, category: 'ai', domain: 'doubao.com' },
+  { name: 'Kimi', emoji: '🌙', amount: 39, category: 'ai', domain: 'moonshot.cn' },
+  { name: '讯飞星火', emoji: '🔥', amount: 30, category: 'ai', domain: 'xfyun.cn' },
+  { name: '即梦 AI', emoji: '🖼️', amount: 69, category: 'ai', domain: 'jimeng.jianying.com' },
+  { name: '可灵 AI', emoji: '🎬', amount: 66, category: 'ai', domain: 'klingai.com' },
   { name: 'Notion', emoji: '📝', amount: 58, category: 'ai', domain: 'notion.so' },
   { name: 'Microsoft 365', emoji: '📊', amount: 498, category: 'ai', domain: 'office.com', plan: 'year' },
-  { name: 'WPS', emoji: '📄', amount: 89, category: 'ai', domain: 'wps.cn', plan: 'year' },
-  // 云存储
+  { name: 'WPS 会员', emoji: '📄', amount: 89, category: 'ai', domain: 'wps.cn', plan: 'year' },
+  { name: 'WPS 超级会员', emoji: '📑', amount: 179, category: 'ai', domain: 'wps.cn', plan: 'year' },
+  { name: '百度文库会员', emoji: '📚', amount: 198, category: 'ai', domain: 'baidu.com', plan: 'year' },
+  { name: 'Canva Pro', emoji: '🖌️', amount: 60, category: 'ai', domain: 'canva.com' },
+  { name: 'Adobe Creative Cloud', emoji: '🎨', amount: 388, category: 'ai', domain: 'adobe.com' },
+  { name: 'Figma Professional', emoji: '🧩', amount: 90, category: 'ai', domain: 'figma.com' },
+  { name: '剪映会员', emoji: '✂️', amount: 25, category: 'ai', domain: 'capcut.cn' },
+  { name: '石墨文档', emoji: '📃', amount: 15, category: 'ai', domain: 'shimo.im' },
+  { name: '有道云笔记', emoji: '📒', amount: 15, category: 'ai', domain: 'youdao.com' },
+  { name: '语雀会员', emoji: '🐦', amount: 15, category: 'ai', domain: 'yuque.com' },
+  { name: 'Zoom Pro', emoji: '📹', amount: 100, category: 'ai', domain: 'zoom.us' },
+  { name: '飞书', emoji: '🕊️', amount: 50, category: 'ai', domain: 'feishu.cn' },
+
+  /* ── 云存储 ── */
   { name: 'iCloud+', emoji: '🍏', amount: 21, category: 'cloud', domain: 'icloud.com' },
   { name: 'Google One', emoji: '🗂️', amount: 68, category: 'cloud', domain: 'google.com' },
   { name: '百度网盘', emoji: '☁️', amount: 30, category: 'cloud', domain: 'pan.baidu.com' },
   { name: '阿里云盘', emoji: '🗄️', amount: 12, category: 'cloud', domain: 'aliyundrive.com' },
+  { name: '夸克网盘', emoji: '⚡', amount: 19, category: 'cloud', domain: 'quark.cn' },
+  { name: '迅雷超级会员', emoji: '🚀', amount: 15, category: 'cloud', domain: 'xunlei.com' },
+  { name: '腾讯微云', emoji: '💧', amount: 12, category: 'cloud', domain: 'weiyun.com' },
+  { name: '115 网盘', emoji: '🔢', amount: 25, category: 'cloud', domain: '115.com' },
+  { name: '坚果云', emoji: '🌰', amount: 12, category: 'cloud', domain: 'jianguoyun.com' },
+  { name: 'Dropbox Plus', emoji: '📦', amount: 70, category: 'cloud', domain: 'dropbox.com' },
+  { name: 'MEGA', emoji: '🅼', amount: 65, category: 'cloud', domain: 'mega.nz' },
   { name: '阿里云', emoji: '🖥️', amount: 96, category: 'cloud', domain: 'aliyun.com' },
-  // 电商生活
+  { name: '腾讯云', emoji: '☁️', amount: 90, category: 'cloud', domain: 'tencent.com' },
+  { name: '华为云', emoji: '🌸', amount: 88, category: 'cloud', domain: 'huaweicloud.com' },
+
+  /* ── 电商购物 ── */
   { name: '淘宝 88VIP', emoji: '🛍️', amount: 888, category: 'shopping', domain: 'taobao.com', plan: 'year' },
   { name: '京东 PLUS', emoji: '🛒', amount: 149, category: 'shopping', domain: 'jd.com', plan: 'year' },
+  { name: '山姆会员店', emoji: '🏬', amount: 260, category: 'shopping', domain: 'samsclub.cn', plan: 'year' },
+  { name: '盒马 X 会员', emoji: '🦛', amount: 258, category: 'shopping', domain: 'freshippo.com', plan: 'year' },
+  { name: 'Costco 会员', emoji: '🏭', amount: 299, category: 'shopping', domain: 'costco.com.cn', plan: 'year' },
   { name: '美团外卖会员', emoji: '🍔', amount: 15, category: 'shopping', domain: 'meituan.com' },
-  // 阅读学习
+  { name: '饿了么超级吃货卡', emoji: '🍜', amount: 10, category: 'shopping', domain: 'ele.me' },
+  { name: '拼多多省钱月卡', emoji: '🍊', amount: 15, category: 'shopping', domain: 'pinduoduo.com' },
+  { name: '唯品会超级VIP', emoji: '👗', amount: 99, category: 'shopping', domain: 'vip.com', plan: 'year' },
+  { name: '网易严选会员', emoji: '🎁', amount: 88, category: 'shopping', domain: '163.com', plan: 'year' },
+
+  /* ── 生活服务 ── */
+  { name: '滴滴出行会员', emoji: '🚕', amount: 15, category: 'life', domain: 'didi.com' },
+  { name: '高德打车会员', emoji: '🗺️', amount: 15, category: 'life', domain: 'amap.com' },
+  { name: '哈啰单车月卡', emoji: '🛴', amount: 15, category: 'life', domain: 'hellobike.com' },
+  { name: '美团单车月卡', emoji: '🚲', amount: 15, category: 'life', domain: 'meituan.com' },
+  { name: '携程会员', emoji: '✈️', amount: 68, category: 'life', domain: 'ctrip.com', plan: 'year' },
+  { name: '飞猪会员', emoji: '🐷', amount: 68, category: 'life', domain: 'fliggy.com', plan: 'year' },
+  { name: '同程旅行会员', emoji: '🧳', amount: 68, category: 'life', domain: 'ly.com', plan: 'year' },
+  { name: '淘票票会员', emoji: '🎟️', amount: 30, category: 'life', domain: 'taopiaopiao.com' },
+  { name: '猫眼会员', emoji: '🐱', amount: 30, category: 'life', domain: 'maoyan.com' },
+  { name: '顺丰会员', emoji: '📮', amount: 12, category: 'life', domain: 'sf-express.com' },
+
+  /* ── 阅读学习 ── */
   { name: '微信读书', emoji: '📚', amount: 19, category: 'reading', domain: 'weread.qq.com' },
   { name: '知乎盐选', emoji: '💡', amount: 19, category: 'reading', domain: 'zhihu.com' },
-  // 游戏娱乐
+  { name: '得到', emoji: '🎓', amount: 365, category: 'reading', domain: 'dedao.cn', plan: 'year' },
+  { name: '樊登读书', emoji: '📖', amount: 365, category: 'reading', domain: 'dushu.io', plan: 'year' },
+  { name: '混沌学园', emoji: '🌀', amount: 365, category: 'reading', domain: 'hundun.cn', plan: 'year' },
+  { name: '喜马拉雅会员', emoji: '🎧', amount: 25, category: 'reading', domain: 'ximalaya.com' },
+  { name: '懒人听书', emoji: '🛋️', amount: 18, category: 'reading', domain: 'lrts.me' },
+  { name: 'QQ阅读', emoji: '📕', amount: 18, category: 'reading', domain: 'qq.com' },
+  { name: '起点读书', emoji: '✍️', amount: 15, category: 'reading', domain: 'qidian.com' },
+  { name: '掌阅 iReader', emoji: '📗', amount: 18, category: 'reading', domain: 'zhangyue.com' },
+  { name: '番茄小说会员', emoji: '🍅', amount: 12, category: 'reading', domain: 'fanqienovel.com' },
+  { name: 'Kindle Unlimited', emoji: '📘', amount: 12, category: 'reading', domain: 'amazon.com' },
+  { name: '多邻国 Plus', emoji: '🦉', amount: 88, category: 'reading', domain: 'duolingo.com' },
+  { name: '墨墨背单词', emoji: '🔤', amount: 30, category: 'reading', domain: 'maimemo.com' },
+  { name: '有道词典会员', emoji: '📔', amount: 18, category: 'reading', domain: 'youdao.com' },
+  { name: '中国大学MOOC', emoji: '🏫', amount: 30, category: 'reading', domain: 'icourse163.org' },
+  { name: 'Coursera Plus', emoji: '🌐', amount: 399, category: 'reading', domain: 'coursera.org' },
+
+  /* ── 游戏娱乐 ── */
   { name: 'Xbox Game Pass', emoji: '🎮', amount: 39, category: 'game', domain: 'xbox.com' },
   { name: 'PlayStation Plus', emoji: '🕹️', amount: 45, category: 'game', domain: 'playstation.com' },
+  { name: 'Nintendo Switch Online', emoji: '🍄', amount: 25, category: 'game', domain: 'nintendo.com' },
+  { name: 'EA Play', emoji: '⚽', amount: 30, category: 'game', domain: 'ea.com' },
   { name: 'Discord Nitro', emoji: '💬', amount: 68, category: 'game', domain: 'discord.com' },
-  // 工具安全
+  { name: 'Roblox Premium', emoji: '🧱', amount: 35, category: 'game', domain: 'roblox.com' },
+  { name: '原神月卡', emoji: '⚔️', amount: 30, category: 'game', domain: 'mihoyo.com' },
+  { name: '崩坏：星穹铁道月卡', emoji: '🚄', amount: 30, category: 'game', domain: 'mihoyo.com' },
+  { name: '腾讯 START 云游戏', emoji: '🌩️', amount: 30, category: 'game', domain: 'qq.com' },
+  { name: '网易云游戏', emoji: '🎯', amount: 30, category: 'game', domain: '163.com' },
+  { name: '王者荣耀战令', emoji: '👑', amount: 60, category: 'game', domain: 'qq.com' },
+
+  /* ── 健康运动 ── */
+  { name: 'Keep 会员', emoji: '🏃', amount: 25, category: 'health', domain: 'keep.com' },
+  { name: '乐刻运动月卡', emoji: '🏋️', amount: 199, category: 'health', domain: 'leke.com' },
+  { name: '超级猩猩月卡', emoji: '🐵', amount: 299, category: 'health', domain: 'supermonkey.com.cn' },
+  { name: '每日瑜伽', emoji: '🧘', amount: 30, category: 'health', domain: 'dailyyoga.cn' },
+  { name: '薄荷健康会员', emoji: '🌿', amount: 25, category: 'health', domain: 'boohee.com' },
+  { name: 'Apple Fitness+', emoji: '💪', amount: 25, category: 'health', domain: 'apple.com' },
+  { name: 'Strava 订阅', emoji: '🚴', amount: 55, category: 'health', domain: 'strava.com' },
+  { name: 'MyFitnessPal', emoji: '🥗', amount: 70, category: 'health', domain: 'myfitnesspal.com' },
+  { name: '悦跑圈会员', emoji: '👟', amount: 18, category: 'health', domain: 'thejoyrun.com' },
+  { name: '咕咚会员', emoji: '🏅', amount: 18, category: 'health', domain: 'codoon.com' },
+
+  /* ── 工具安全 ── */
   { name: '1Password', emoji: '🔐', amount: 50, category: 'security', domain: '1password.com' },
+  { name: 'Bitwarden Premium', emoji: '🗝️', amount: 10, category: 'security', domain: 'bitwarden.com' },
+  { name: 'LastPass Premium', emoji: '🔑', amount: 24, category: 'security', domain: 'lastpass.com' },
   { name: 'NordVPN', emoji: '🛡️', amount: 35, category: 'security', domain: 'nordvpn.com' },
+  { name: 'ExpressVPN', emoji: '🚀', amount: 68, category: 'security', domain: 'expressvpn.com' },
+  { name: 'Surfshark', emoji: '🦈', amount: 30, category: 'security', domain: 'surfshark.com' },
+  { name: '卡巴斯基', emoji: '🔒', amount: 30, category: 'security', domain: 'kaspersky.com' },
+  { name: 'Norton 360', emoji: '🟡', amount: 40, category: 'security', domain: 'norton.com' },
+  { name: 'Setapp', emoji: '🧰', amount: 68, category: 'security', domain: 'setapp.com' },
 ]
+
+/** 编辑页「热门服务」快选（按名称引用 PRESETS；优先挑选带官方图标的高频项） */
+export const HOT_PRESET_NAMES: string[] = [
+  'Netflix',
+  'Spotify',
+  'YouTube Premium',
+  'Apple Music',
+  '网易云音乐',
+  'QQ音乐',
+  '爱奇艺',
+  '腾讯视频',
+  '哔哩哔哩大会员',
+  '芒果TV',
+  'ChatGPT Plus',
+  'Claude Pro',
+  'Notion',
+  'Microsoft 365',
+  'iCloud+',
+  '百度网盘',
+  '微信读书',
+  '淘宝 88VIP',
+  '京东 PLUS',
+  '美团外卖会员',
+  'Xbox Game Pass',
+  '1Password',
+]
+
+/** 按关键词搜索预置服务（匹配名称或域名，忽略大小写） */
+export function searchPresets(keyword: string): Preset[] {
+  const q = keyword.trim().toLowerCase()
+  if (!q) return PRESETS
+  return PRESETS.filter((p) => p.name.toLowerCase().includes(q) || p.domain.toLowerCase().includes(q))
+}
 
 export function monthsSince(startDate: string): number {
   const start = parseDate(startDate)

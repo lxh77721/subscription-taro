@@ -53,9 +53,19 @@ export async function pushProfile(): Promise<boolean> {
 
 /** 从云端加载订阅与设置（云端是唯一数据源） */
 export async function loadCloudData(): Promise<boolean> {
-  if (!(await ensureLogin())) return false
-  await useSubscriptionStore.getState().refresh()
-  return true
+  const ok = await ensureLogin()
+  if (ok) {
+    await useSubscriptionStore.getState().refresh()
+    return true
+  }
+  // 非微信环境（H5 预览）无登录态：仍尝试匿名拉取一次，
+  // 后端开启 ALLOW_ANONYMOUS 时可读到演示数据；未开启则 401，refresh 内部已兜底为空态。
+  try {
+    await useSubscriptionStore.getState().refresh()
+  } catch (e) {
+    console.warn('[sync] 匿名拉取云端数据失败', e)
+  }
+  return false
 }
 
 /**

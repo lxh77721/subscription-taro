@@ -1,5 +1,5 @@
 import { Picker, Text, View } from '@tarojs/components'
-import Taro, { useLoad, useRouter } from '@tarojs/taro'
+import Taro, { useDidShow, useLoad, useRouter } from '@tarojs/taro'
 import { useState } from 'react'
 import { Save, Bell } from 'lucide-react-taro'
 import { Button } from '@/components/ui/button'
@@ -15,9 +15,11 @@ import {
   type Category,
   type CustomUnit,
   type PlanType,
+  type Preset,
   type RemindDays,
   type SubStatus,
   CUSTOM_UNITS,
+  HOT_PRESET_NAMES,
   PLAN_OPTIONS,
   PRESETS,
   REMIND_OPTIONS,
@@ -71,6 +73,26 @@ const EditPage = () => {
     note: '',
   })
 
+  /** 把「选择服务」页带过来的预置项填入表单 */
+  const applyPreset = (preset: {
+    name?: string
+    emoji?: string
+    domain?: string
+    amount?: string | number
+    category?: Category
+    plan?: PlanType
+  }) => {
+    setForm((f) => ({
+      ...f,
+      name: preset.name || '',
+      emoji: preset.emoji || '📌',
+      domain: preset.domain || '',
+      amount: String(preset.amount ?? ''),
+      category: preset.category || 'video',
+      planType: preset.plan || 'month',
+    }))
+  }
+
   useLoad(() => {
     if (editId) {
       const found = useSubscriptionStore.getState().list.find((s) => s.id === editId)
@@ -93,27 +115,30 @@ const EditPage = () => {
         })
       }
     } else {
-      const preset = Taro.getStorageSync('pending_preset') as
-        | { name?: string; emoji?: string; domain?: string; amount?: string; category?: Category; plan?: PlanType }
-        | undefined
+      const preset = Taro.getStorageSync('pending_preset')
       if (preset && preset.name) {
-        setForm((f) => ({
-          ...f,
-          name: preset.name || '',
-          emoji: preset.emoji || '📌',
-          domain: preset.domain || '',
-          amount: preset.amount || '',
-          category: preset.category || 'video',
-          planType: preset.plan || 'month',
-        }))
+        applyPreset(preset)
         Taro.removeStorageSync('pending_preset')
       }
+    }
+  })
+
+  // 从「选择服务」页（?from=edit）返回时自动回填。
+  // 首次进入时 pending_preset 已被上面的 useLoad 消费并清空，这里读到空值不会重复处理。
+  useDidShow(() => {
+    if (editId) return
+    const preset = Taro.getStorageSync('pending_preset')
+    if (preset && preset.name) {
+      applyPreset(preset)
+      Taro.removeStorageSync('pending_preset')
     }
   })
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }))
   const cats = allCategories(settings)
   const payments = settings.payments || []
+  /** 热门服务快选（服务库已 100+ 项，这里只展示常用项，完整列表在「选择服务」页） */
+  const hotPresets = HOT_PRESET_NAMES.map((n) => PRESETS.find((p) => p.name === n)).filter(Boolean) as Preset[]
 
   /** 选择常用服务时自动带出官方图标与分类 */
   const pickPreset = (name: string) => {
@@ -257,9 +282,20 @@ const EditPage = () => {
           </View>
 
           <View className="mb-4">
-            <Text className="block text-sm text-slate-600 mb-2">常用服务（点击带出官方图标）</Text>
+            <View style={{ display: 'flex', alignItems: 'center', marginBottom: rpx(8) }}>
+              <Text className="block text-sm text-slate-600" style={{ flex: 1 }}>
+                常用服务（点击带出图标与参考价）
+              </Text>
+              <Text
+                className="block text-xs"
+                style={{ color: '#5E9AFF' }}
+                onClick={() => Taro.navigateTo({ url: '/pages/preset/index?from=edit' })}
+              >
+                全部服务 ›
+              </Text>
+            </View>
             <View className="flex flex-row flex-wrap gap-2">
-              {PRESETS.slice(0, 12).map((p) => (
+              {hotPresets.map((p) => (
                 <Badge
                   key={p.name}
                   variant={form.name === p.name ? 'default' : 'outline'}
