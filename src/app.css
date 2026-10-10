@@ -402,7 +402,13 @@ img[src^='data:image/svg+xml'] { width: 32rpx; height: 32rpx; }
 .monitor-row:last-child { border-bottom: 0; }
 .or-desc { font-size: 22rpx; color: #9CA3AF; margin-top: 4rpx; font-weight: 400; }
 .or-right { margin-left: auto; }
-.svc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20rpx 16rpx; }
+/* 1fr 实际是 minmax(auto,1fr)：格内 nowrap 长名会把轨道撑破容器，真机上第 4 列被顶出屏幕。
+   用 minmax(0,1fr) 强制等分（长名交给格内 ellipsis），任何机型宽度都不会溢出 */
+.svc-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20rpx 16rpx; }
+/* 宽屏设备（iPad / 折叠屏展开 / 横屏）自动加密到 6 列，避免格子被等比放大后过于稀疏 */
+@media (min-width: 600px) {
+  .svc-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
 .svc-item { display: flex; flex-direction: column; align-items: center; gap: 12rpx; }
 .svc-item .si-name { font-size: 21rpx; color: #6B7280; text-align: center; line-height: 1.3; }
 .svc-item.on .bico { box-shadow: 0 0 0 6rpx #fff, 0 0 0 10rpx #111; }

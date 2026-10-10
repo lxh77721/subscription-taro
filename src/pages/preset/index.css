@@ -164,6 +164,9 @@
   align-items: center;
   gap: 14rpx;
   padding: 12rpx 0;
+  /* 网格格子：允许收缩到轨道宽，长名才能触发下面的 ellipsis（配合 minmax(0,1fr)） */
+  min-width: 0;
+  width: 100%;
 }
 .p-svc-name {
   font-size: 21rpx;
@@ -171,6 +174,7 @@
   text-align: center;
   line-height: 1.35;
   max-width: 100%;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
