@@ -206,8 +206,18 @@ const IndexPage = () => {
         </View>
       </View>
 
-      {/* 悬浮新增：跳「选择服务」页 */}
-      <View className="fab" onClick={goToPreset}>
+      {/* 悬浮新增：跳「选择服务」页。
+          H5 端 tabBar 由 DOM 渲染并占住视口底部，fixed 定位锚定的是整个视口，
+          不上移会叠在 tabBar 上（weapp 的 tabBar 是原生组件、不占页面视口，无需处理） */}
+      <View
+        className="fab"
+        style={
+          process.env.TARO_ENV === 'h5'
+            ? { bottom: 'calc(50px + env(safe-area-inset-bottom) + 14px)' }
+            : undefined
+        }
+        onClick={goToPreset}
+      >
         <Text style={{ fontSize: rpx(26), fontWeight: '300', lineHeight: '1' }}>+</Text>
       </View>
     </View>
